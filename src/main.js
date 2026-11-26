@@ -412,6 +412,7 @@ G.cheatCode = (c) => {
 // ---------------- Tod / Verhaftung ----------------
 function nearestPoi(type) { let best = null, bd = 1e12; for (const p of city.pois) if (p.type === type) { const d = (p.x - G.player.pos.x) ** 2 + (p.z - G.player.pos.z) ** 2; if (d < bd) { bd = d; best = p; } } return best; }
 function onDied() {
+  try { Multi.reportDeath(); } catch (e) { }
   UI.bigMsg('WASTED', '', 'red', 4200); Audio.play('fail');
   setTimeout(() => UI.fade(true, 900), 2600);
   setTimeout(() => {

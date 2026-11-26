@@ -40,6 +40,7 @@ export const Multi = {
       this.subscribed = true;
       mq.subscribe(`${base}/p/+`, (t, msg) => this.onState(msg));
       mq.subscribe(`${base}/chat`, (t, msg) => this.onChat(msg));
+      mq.subscribe(`${base}/hit`, (t, msg) => this.onHit(msg));
     }
     this.adminSubs(mq, base);
     Accounts.syncClaim(mq).then(() => { if (Accounts.conflict) { emit('toast', '⚠ Der Kontoname ist online von jemand anderem belegt – Mehrspieler aus.'); this.stop(); } });
@@ -87,6 +88,25 @@ export const Multi = {
   stop() {
     if (this.mq) { try { this.mq.publish(this.mine, JSON.stringify({ i: this.id, bye: 1 })); } catch (e) { } this.mq.close(); this.mq = null; }
     this.on = false; this.subscribed = false; this.adminWired = false; for (const id of [...this.remotes.keys()]) this.drop(id); this.setStatus('aus'); if (this.chatEl) this.chatEl.root.style.display = 'none';
+  },
+  // ---- PvP ----
+  targets() { if (!this.on || !G.settings.pvp) return []; const a = []; for (const r of this.remotes.values()) if (r.group && (r.person ? r.person.group.visible : r.veh && r.veh.root.visible)) a.push({ id: r.id, name: r.name, x: r.x, y: r.y, z: r.z, veh: !!r.veh }); return a; },
+  sendHit(r, dmg, head, wid) {
+    if (!this.mq || !this.mq.connected || !G.settings.pvp) return; const p = G.player;
+    this.mq.publish(`${this.base}/hit`, JSON.stringify({ t: 'hit', to: r.id, f: this.id, n: this.name, d: Math.round(Math.min(220, dmg)), h: head ? 1 : 0, w: wid, x: Math.round(p.pos.x), z: Math.round(p.pos.z) }));
+  },
+  onHit(msg) {
+    let m; try { m = JSON.parse(msg); } catch (e) { return; } if (!m || m.to !== this.id) return; const pl = G.player;
+    if (m.t === 'kill') { const n = 500; G.profile.money += n; emit('toast', `🎯 Du hast ${esc(String(m.v).slice(0, 16))} abgeschossen (+$${n})`); return; }
+    if (m.t !== 'hit' || !G.settings.pvp || !pl || !pl.alive || !IN_GAME.has(G.state)) return;
+    const now = performance.now(); if (now - (this._hitWin || 0) > 1000) { this._hitWin = now; this._hitN = 0; } if (++this._hitN > 40) return; // Flut begrenzen
+    pl.lastHitBy = { name: String(m.n || '?').slice(0, 16), id: m.f, t: now };
+    pl.damage(Math.max(0, Math.min(220, +m.d || 0)) * (pl.vehicle ? 0.5 : 1), { x: +m.x || pl.pos.x, z: +m.z || pl.pos.z });
+  },
+  reportDeath() {
+    const pl = G.player, l = pl && pl.lastHitBy; if (!this.mq || !l || performance.now() - l.t > 8000) return; pl.lastHitBy = null;
+    this.mq.publish(`${this.base}/chat`, JSON.stringify({ n: '☠', m: `${l.name} hat ${this.name} abgeschossen`, i: this.id }));
+    this.mq.publish(`${this.base}/hit`, JSON.stringify({ t: 'kill', to: l.id, v: this.name }));
   },
   list() { const a = []; for (const r of this.remotes.values()) if (r.group) a.push({ name: r.name, x: r.x, z: r.z }); return a; },
   onState(msg) {
@@ -182,6 +202,7 @@ export const Multi = {
     input.addEventListener('keyup', (e) => e.stopPropagation());
     window.addEventListener('keydown', (e) => { if (e.code === 'Enter' && G.state === 'play' && !this.chatOpen && this.on && !(e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName))) { e.preventDefault(); this.openChat(); } });
     G.openChat = () => this.openChat();
+    G.remoteTargets = () => this.targets(); G.multiHit = (r, d, h, w) => this.sendHit(r, d, h, w);
   },
   openChat() {
     if (!this.chatEl || !this.on || this.chatOpen) return; this.chatOpen = true;

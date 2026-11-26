@@ -52,6 +52,15 @@ export const Combat = {
     if (gt < best.t && gt > 0) best = { t: gt, type: 'ground' };
     const hp = rayPed(ox, oy, oz, dx, dy, dz, best.t, ignorePed); if (hp && hp.t < best.t) best = { t: hp.t, type: 'ped', ped: hp.ped, y: hp.y };
     const hv = rayVeh(ox, oy, oz, dx, dy, dz, best.t, ignoreVeh); if (hv && hv.t < best.t) best = { t: hv.t, type: 'veh', veh: hv.veh };
+    // Mitspieler (PvP): senkrechte Kapsel bzw. Kugel um Fahrzeuge
+    if (G.remoteTargets && (!ignorePed || ignorePed === G.player)) {
+      const hl2 = dx * dx + dz * dz || 1e-6;
+      for (const r of G.remoteTargets()) {
+        const px = r.x - ox, pz = r.z - oz, t = (px * dx + pz * dz) / hl2; if (t <= 0 || t >= best.t) continue;
+        const hx = px - dx * t, hz = pz - dz * t, yy = oy + dy * t - r.y, rad = r.veh ? 1.5 : 0.45, top = r.veh ? 2.0 : 1.9;
+        if (Math.hypot(hx, hz) < rad && yy > -0.1 && yy < top) best = { t, type: 'rplayer', rp: r, y: yy };
+      }
+    }
     // Spieler als Ziel (für NPC-Schützen)
     const pl = G.player;
     if (pl && pl !== ignorePed && !pl.vehicle && pl.alive) {
@@ -78,6 +87,7 @@ export const Combat = {
       const dmg = w.explosive ? 5 : w.dmg * (isPlayer ? 1 : 0.55);
       if (w.explosive) this.explode(end.x, end.y, end.z, w.blast || 9, w.dmg, shooter);
       if (hit.type === 'ped') { const head = hit.y > 1.55; hit.ped.hurt(dmg, shooter, head, { x: _v.x, z: _v.z }); if (isPlayer) emit('hitmarker', head); if (isPlayer && hit.ped.role === 'civ') emit('crime', 'shoot_ped', hit.ped.pos, hit.ped); }
+      else if (hit.type === 'rplayer') { const head = hit.y > 1.55 && !hit.rp.veh; FX.sparks(end.x, end.y, end.z, 4, -_v.x, -_v.z); if (G.multiHit) G.multiHit(hit.rp, (w.explosive ? 5 : w.dmg) * (head ? 1.8 : 1), head, w.id); emit('hitmarker', head); }
       else if (hit.type === 'player') { G.player.damage(dmg, shooter.pos || origin); }
       else if (hit.type === 'veh') {
         const v = hit.veh; const [lx, lz] = v.localPoint(end.x, end.z);
@@ -142,6 +152,9 @@ on('explosion', (x, y, z, radius, damage, source) => {
     const dx = (v.pos.x - x) / (d || 1), dz = (v.pos.z - z) / (d || 1);
     v.vel.x += dx * 9 * f; v.vel.z += dz * 9 * f; if (v.kind === 'car' || v.kind === 'bike') { v.vy = Math.max(v.vy, 4 * f); v.pos.y += 0.05; v.angVel += rr(-1.5, 1.5) * f; }
     if (v.hp < 150 && !v.exploded) v.burning = Math.max(v.burning, 0.01);
+  }
+  if (G.remoteTargets && (source === G.player || (source && source.driver === G.player))) { // Explosion trifft Mitspieler
+    for (const r of G.remoteTargets()) { const d = Math.hypot(r.x - x, r.z - z); if (d < radius * 1.2) G.multiHit(r, damage * (1 - d / (radius * 1.2)) * 0.6, false, 'explosion'); }
   }
   const pl = G.player;
   if (pl && pl.alive) { const d = Math.hypot(pl.pos.x - x, pl.pos.z - z); if (d < radius * 1.2 && !(pl.vehicle && pl.vehicle === source)) { const f = 1 - d / (radius * 1.2); pl.damage(damage * f * 0.6, { x, y, z }); if (!pl.vehicle) { pl.knock.x += (pl.pos.x - x) / (d || 1) * 9 * f; pl.knock.z += (pl.pos.z - z) / (d || 1) * 9 * f; } } }
