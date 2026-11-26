@@ -40,7 +40,7 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 ## Leistung auf Tablets
 
 - **Mittel** ist auf iPad/Tablets der Standard: ein Schattenkaskaden-Fenster (ca. 150 m) mit 4-Punkt-Filter, keine Spiegelungs-Zusatzrunde und keine Sonnenstrahlen, Kantenglättung per FXAA statt MSAA, Lampenlichter nur nachts (beide Licht-Varianten werden beim Laden vorab kompiliert), Himmel wird zuletzt gezeichnet (Wolken-Shader nur auf freien Pixeln). Spiegelungen und Sonnenstrahlen gibt es ab **Hoch**.
-- Die **automatische Leistungsanpassung** greift schon nach wenigen Sekunden ein: erst teure Effekte aus, dann Auflösung bis 60 %, im Notfall eine Qualitätsstufe tiefer (Seite lädt neu). Unter *Einstellungen → FPS anzeigen* sieht man Bildrate und Auflösungsfaktor.
+- Die **automatische Grafik-Anpassung** (standardmäßig aus, einschaltbar unter Einstellungen) greift schon nach wenigen Sekunden ein: erst teure Effekte aus, dann Auflösung bis 60 %, im Notfall eine Qualitätsstufe tiefer (Seite lädt neu). Unter *Einstellungen → FPS anzeigen* sieht man Bildrate und Auflösungsfaktor.
 
 ## Glatte 3D-Modelle (kein Blockwerk)
 

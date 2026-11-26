@@ -274,7 +274,7 @@ const Gov = {
     return false;
   },
   tick(dt) {
-    if (!this.enabled || G.settings.autoTune === false || G.state !== 'play') { this.acc = 0; this.n = 0; return; }
+    if (!this.enabled || G.settings.autoGfx !== true || G.state !== 'play') { this.acc = 0; this.n = 0; return; }
     this.age += dt;
     // Einzelne Aussetzer (Tab-Wechsel, Shader-Kompilierung) ignorieren – aber mehrere lahme Bilder in Folge sind echte Langsamkeit
     if (dt > 0.4) this.hitch = (this.hitch || 0) + 1; else this.hitch = 0;

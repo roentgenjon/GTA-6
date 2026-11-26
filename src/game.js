@@ -10,7 +10,7 @@ export const G = {
   weather: null, sky: null,
   settings: {
     quality: 'high', volume: 0.7, music: 0.5, sens: 1.0, fov: 70, invertY: false, traffic: 1, timeScale: 1,
-    shadows: true, bloom: true, mouseSmooth: false, units: 'kmh', subtitles: true, camShake: true, hints: true, touch: 'auto', reflections: true, godrays: true, autoTune: true, showFps: false, infAmmo: true,
+    shadows: true, bloom: true, mouseSmooth: false, units: 'kmh', subtitles: true, camShake: true, hints: true, touch: 'auto', reflections: true, godrays: true, autoGfx: false, showFps: false, infAmmo: true,
   },
   save: null,
   stats: { dist: 0, vdist: 0, kills: 0, crimes: 0, jumps: 0, driftBest: 0, wins: 0, missions: 0, stolen: 0, arrests: 0, deaths: 0, played: 0, maxJump: 0, spent: 0, earned: 0 },
