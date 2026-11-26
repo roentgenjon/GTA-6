@@ -6,6 +6,7 @@ import { buildCity, city, makeInstanced, pineGeom } from './city.js';
 import * as TR from './terrain.js';
 import { G } from './game.js';
 import { clamp, smoothstep, fbm, mulberry32, lerp, noise2 } from './util.js';
+import { Reflect } from './reflect.js';
 import * as T from './textures.js';
 
 export const World = { city, spawns: { planes: [], helis: [], boats: [], cars: [] }, water: null, hills: [], landmarks: [] };
@@ -62,7 +63,8 @@ function buildOcean(scene, sky) {
   const pos = g.attributes.position, d = new Float32Array(pos.count);
   for (let k = 0; k < pos.count; k++) d[k] = clamp(TR.WATER - TR.terrainHeight(pos.getX(k), pos.getZ(k)), -2, 30);
   g.setAttribute('aDepth', new THREE.BufferAttribute(d, 1));
-  const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uHor: sky.uniforms.uHor, uZen: sky.uniforms.uZen, uSun: sky.uniforms.uSun, uSunCol: sky.uniforms.uSunCol, uNight: sky.uniforms.uNight, uRain: sky.uniforms.uRain, uCam: { value: new THREE.Vector3() } }]);
+  const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uHor: sky.uniforms.uHor, uZen: sky.uniforms.uZen, uSun: sky.uniforms.uSun, uSunCol: sky.uniforms.uSunCol, uNight: sky.uniforms.uNight, uRain: sky.uniforms.uRain, uCam: { value: new THREE.Vector3() }, tReflect: Reflect.uniforms.tReflect, uTexMat: { value: Reflect.texMat }, uReflect: Reflect.uniforms.uOceanReflect, uReflY: Reflect.uniforms.uReflY }]);
+  Object.assign(uniforms, { uHor: sky.uniforms.uHor, uZen: sky.uniforms.uZen, uSun: sky.uniforms.uSun, uSunCol: sky.uniforms.uSunCol, uNight: sky.uniforms.uNight, uRain: sky.uniforms.uRain, tReflect: Reflect.uniforms.tReflect, uTexMat: Reflect.uniforms.uTexMat, uReflect: Reflect.uniforms.uOceanReflect, uReflY: Reflect.uniforms.uReflY }); // geteilte Uniform-Objekte (merge klont sonst)
   const mat = new THREE.ShaderMaterial({
     uniforms, fog: true, transparent: true, depthWrite: true,
     vertexShader: `
@@ -80,7 +82,7 @@ function buildOcean(scene, sky) {
         #include <fog_vertex>
       }`,
     fragmentShader: `
-      uniform vec3 uHor,uZen,uSun,uSunCol,uCam; uniform float uNight,uTime,uRain; varying float vDepth; varying vec3 vW; varying vec3 vN;
+      uniform vec3 uHor,uZen,uSun,uSunCol,uCam; uniform float uNight,uTime,uRain,uReflect,uReflY; uniform sampler2D tReflect; uniform mat4 uTexMat; varying float vDepth; varying vec3 vW; varying vec3 vN;
       #include <fog_pars_fragment>
       float hash(vec2 p){ return fract(sin(dot(p,vec2(127.1,311.7)))*43758.5453); }
       float noise(vec2 p){ vec2 i=floor(p),f=fract(p); f=f*f*(3.-2.*f); return mix(mix(hash(i),hash(i+vec2(1,0)),f.x),mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x),f.y); }
@@ -96,8 +98,17 @@ function buildOcean(scene, sky) {
         float lightK = 0.35 + 0.65*(1.-uNight);
         body *= lightK; body = mix(body, body*vec3(0.6,0.65,0.7), uRain);
         vec3 sky = mix(uHor, uZen, clamp(R.y*1.4,0.,1.));
-        vec3 col = mix(body, sky, fr);
-        float sp = pow(max(dot(R, uSun),0.), 280.)*2.5 * (1.-uRain) * smoothstep(0.,0.15,uSun.y);
+        vec3 refl = sky;
+        if (uReflect > 0.01) {
+          vec4 pr = uTexMat * vec4(vW.x, uReflY, vW.z, 1.0);
+          float okw = step(0.0, pr.w);
+          vec2 ruv = pr.xy / max(pr.w, 0.0001) + N.xz * (0.035 / (1.0 + pr.w * 0.012));
+          vec3 rc = texture2D(tReflect, clamp(ruv, 0.002, 0.998)).rgb;
+          float inside = smoothstep(0.0,0.05,ruv.x)*smoothstep(1.0,0.95,ruv.x)*smoothstep(0.0,0.05,ruv.y)*smoothstep(1.0,0.95,ruv.y)*okw;
+          refl = mix(sky, rc, uReflect*inside);
+        }
+        vec3 col = mix(body, refl, fr);
+        float sp = pow(max(dot(R, uSun),0.), 280.)*2.5 * (1.-uRain) * smoothstep(0.,0.15,uSun.y) * (1.0 - 0.75*uReflect);
         col += uSunCol*sp;
         float foam = smoothstep(0.7, 0.0, vDepth + (noise(vW.xz*0.5+uTime*0.3)-.5)*0.9);
         foam *= 0.55+0.45*sin(vDepth*2.5 - uTime*1.5);
@@ -108,7 +119,7 @@ function buildOcean(scene, sky) {
       }`,
   });
   const mesh = new THREE.Mesh(g, mat); mesh.frustumCulled = false; mesh.renderOrder = 1;
-  scene.add(mesh); World.water = mesh; World.waterUniforms = uniforms;
+  scene.add(mesh); World.water = mesh; World.waterUniforms = uniforms; Reflect.ocean = mesh;
 }
 
 // ----- Flughafen -----

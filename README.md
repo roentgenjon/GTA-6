@@ -22,6 +22,14 @@ Ein im Browser spielbares, komplett prozedural erzeugtes Open-World-Spiel im Sti
 
 Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick (Bewegen bzw. Lenken), Wischen rechts (Kamera), Tasten für Schießen, Zielen, Springen, E/F, Gas/Bremse/Handbremse im Auto sowie Schub/Neigung im Flugzeug. Unter *Einstellungen → Touch-Steuerung* lässt sie sich erzwingen oder ausschalten. Auf Touch-Geräten startet das Spiel in „Mittel"; für mehr Grafik die Qualität erhöhen. Tipp für iPad: Seite zum Home-Bildschirm hinzufügen (Vollbild).
 
+## Licht, Schatten & Spiegelungen
+
+- **Kaskaden-Schatten (CSM):** Sonne und Mond werfen Schatten über die ganze Sichtweite (2–4 Kaskaden je nach Qualität), Wolkenkratzer-Schatten liegen quer über den Straßen.
+- **Sonneneffekte:** sichtbare Sonnenscheibe, Lichtstrahlen (God Rays) durch Häuserlücken, Linsenreflexe, Bloom, Verdeckung durch Gebäude und Wolken.
+- **Echtzeit-Spiegelungen:** der Ozean und nasse Straßen/Pfützen spiegeln Stadt, Himmel, Fahrzeuge und Figuren (planare Reflexion), dazu Himmels-Reflexionen auf Lack und Glas.
+- **Lichtkegel:** volumetrische Scheinwerferstrahlen und Lichtflecken auf der Straße bei Nacht, Regen und Nebel.
+- Unter *Einstellungen* lassen sich Spiegelungen und Sonnenstrahlen einzeln abschalten. Die Qualitätsstufe bestimmt Kaskaden, Schattenauflösung und Spiegelungs-Detail (Wechsel lädt die Seite neu).
+
 ## Inhalt
 
 - **Welt:** 24×24-Block-Stadt (Downtown-Wolkenkratzer, Neon District, Marina Shores mit Strand, Palm-Estates-Villen, Hafen, Industrie, Vororte), Flughafen mit Rollfeld, Bucht mit Stegen, Insel, Berge, Wälder, Farmen. Tag/Nacht-Zyklus, Sonnenuntergang, Regen, Gewitter, Nebel, Wolken, nasse Straßen.

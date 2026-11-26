@@ -95,6 +95,7 @@ export class Sky {
     this.exposure = 1; this.flash = 0; this.flashTimer = 5;
     this.setShadowRes(2048);
   }
+  attachCSM(csm) { this.csm = csm; this.sun.castShadow = false; this.sun.visible = false; }
   setShadowRes(n) { this.sun.shadow.mapSize.set(n, n); if (this.sun.shadow.map) { this.sun.shadow.map.dispose(); this.sun.shadow.map = null; } }
   update(dt, camPos, followPos) {
     const hour = G.hour, w = G.weather;
@@ -137,6 +138,7 @@ export class Sky {
     this.sun.target.position.set(ax, ay, az);
     this.sun.position.set(ax + dir.x * 400, ay + Math.max(dir.y, 0.12) * 400 + (dir.y < 0.12 ? 40 : 0), az + dir.z * 400);
     this.sun.target.updateMatrixWorld();
+    if (this.csm) { const d = dir.clone(); if (d.y < 0.09) { d.y = 0.09; d.normalize(); } this.csm.lightDirection.copy(d).negate(); for (const l of this.csm.lights) { l.color.copy(this.sun.color); l.intensity = this.sun.intensity; } }
     this.hemi.color.setHex(k.hs); this.hemi.groundColor.setHex(k.hg);
     this.hemi.intensity = k.hi * (1 - cloud * 0.1) * 0.9 + fl * 1.2;
     // Nebel

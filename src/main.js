@@ -5,6 +5,9 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
+import { CSM } from 'three/addons/csm/CSM.js';
+import { Reflect } from './reflect.js';
+import { Hooks, hookObject } from './materials.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { G, emit, on } from './game.js';
 import { Sky, Weather, Rain } from './sky.js';
@@ -31,16 +34,51 @@ import { clamp, rr, fmtMoney, lerp } from './util.js';
 import { WEAPON_ORDER, WEAPONS } from './weapons.js';
 
 const QUALITY = {
-  low: { pr: 1, shadow: 1024, bloom: false, traffic: 14, peds: 26, parked: 10, terrain: 'low' },
-  medium: { pr: 1.25, shadow: 2048, bloom: false, traffic: 22, peds: 40, parked: 18, terrain: 'high' },
-  high: { pr: 1.5, shadow: 2048, bloom: true, traffic: 30, peds: 55, parked: 26, terrain: 'high' },
-  ultra: { pr: 2, shadow: 4096, bloom: true, traffic: 40, peds: 70, parked: 34, terrain: 'high' },
+  low: { pr: 1, shadow: 1024, bloom: false, traffic: 14, peds: 26, parked: 10, terrain: 'low', csm: null, refl: null, rays: 0 },
+  medium: { pr: 1.25, shadow: 1024, bloom: false, traffic: 22, peds: 40, parked: 18, terrain: 'high', csm: { n: 2, size: 1024, far: 320 }, refl: { scale: 0.4, roads: false, every: 2 }, rays: 14 },
+  high: { pr: 1.5, shadow: 2048, bloom: true, traffic: 30, peds: 55, parked: 26, terrain: 'high', csm: { n: 3, size: 2048, far: 650 }, refl: { scale: 0.5, roads: true, every: 1 }, rays: 26 },
+  ultra: { pr: 2, shadow: 4096, bloom: true, traffic: 40, peds: 70, parked: 34, terrain: 'high', csm: { n: 4, size: 2048, far: 1100 }, refl: { scale: 0.75, roads: true, every: 1 }, rays: 40 },
 };
 const TIPS = ['Tipp: Mit der Handbremse (Leertaste) lassen sich Autos gezielt driften.', 'Tipp: Nach einem Verbrechen hilft es, außer Sichtweite zu fahren und das Auto zu wechseln.', 'Tipp: Gelbe Rampen bringen Stunt-Prämien.', 'Tipp: Kaufe Immobilien, um Fahrzeuge zu speichern.', 'Tipp: Regen macht Straßen rutschig – fahr vorsichtig!', 'Tipp: Mit F steigst du auch in Boote, Flugzeuge und Hubschrauber.', 'Tipp: Setze einen Wegpunkt auf der Karte (M) für eine GPS-Route.'];
 
-let gtao, renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
+let sunPass, csm, lastFov = 0, sunOcc = 1, gtao, renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
 let loaded = false, started = false;
 
+const SunShader = {
+  uniforms: { tDiffuse: { value: null }, uSun: { value: new THREE.Vector2(0.5, 0.5) }, uVis: { value: 0 }, uRays: { value: 0.6 }, uFlare: { value: 0.5 }, uAspect: { value: 1.7 }, uColor: { value: new THREE.Color(1, 0.85, 0.6) } },
+  defines: { SAMPLES: 24 },
+  vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
+  fragmentShader: `uniform sampler2D tDiffuse; uniform vec2 uSun; uniform float uVis, uRays, uFlare, uAspect; uniform vec3 uColor; varying vec2 vUv;
+  float lum(vec3 c){ return dot(c, vec3(0.2126, 0.7152, 0.0722)); }
+  float disc(vec2 uv, vec2 c, float r){ return smoothstep(r, r * 0.15, length((uv - c) * vec2(uAspect, 1.0))); }
+  float ringf(vec2 uv, vec2 c, float r, float w){ return smoothstep(w, 0.0, abs(length((uv - c) * vec2(uAspect, 1.0)) - r)); }
+  void main(){
+    vec3 col = texture2D(tDiffuse, vUv).rgb;
+    if (uVis > 0.002) {
+      vec2 toSun = uSun - vUv; float dist = length(toSun * vec2(uAspect, 1.0));
+      vec2 stp = toSun / float(SAMPLES) * 0.9;
+      float jit = fract(sin(dot(vUv, vec2(12.9898, 78.233))) * 43758.5453);
+      vec2 uv = vUv + stp * jit; float decay = 1.0; vec3 acc = vec3(0.0);
+      for (int i = 0; i < SAMPLES; i++) { uv += stp; vec3 s = texture2D(tDiffuse, uv).rgb; float m = smoothstep(0.9, 5.0, lum(s)); acc += s * m * decay; decay *= 0.962; }
+      acc /= float(SAMPLES);
+      col += acc * uRays * uVis * (1.0 / (1.0 + dist * 1.4)) * 1.7 * mix(vec3(1.0), uColor, 0.55);
+      // warmer Schleier um die Sonne
+      col += uColor * uVis * exp(-dist * 3.2) * 0.07 * uRays;
+      // Linsenreflexe
+      vec2 axis = vec2(0.5) - uSun; vec3 fl = vec3(0.0);
+      fl += disc(vUv, uSun + axis * 0.32, 0.055) * vec3(1.0, 0.72, 0.4) * 0.30;
+      fl += disc(vUv, uSun + axis * 0.62, 0.035) * vec3(0.5, 0.8, 1.0) * 0.35;
+      fl += disc(vUv, uSun + axis * 1.08, 0.075) * vec3(0.5, 1.0, 0.65) * 0.22;
+      fl += disc(vUv, uSun + axis * 1.55, 0.045) * vec3(1.0, 0.5, 0.8) * 0.32;
+      fl += disc(vUv, uSun + axis * 2.05, 0.09) * vec3(0.7, 0.6, 1.0) * 0.16;
+      fl += ringf(vUv, uSun + axis * 0.92, 0.17, 0.012) * vec3(1.0, 0.85, 0.6) * 0.30;
+      fl += ringf(vUv, uSun, 0.11, 0.010) * vec3(1.0, 0.9, 0.7) * 0.16;
+      fl += exp(-abs(vUv.y - uSun.y) * 90.0) * exp(-abs(vUv.x - uSun.x) * 2.6) * vec3(0.45, 0.7, 1.0) * 0.22;
+      col += fl * uFlare * uVis;
+    }
+    gl_FragColor = vec4(col, 1.0);
+  }`,
+};
 const CineShader = {
   uniforms: { tDiffuse: { value: null }, uBlur: { value: 0 }, uVig: { value: 0.4 }, uTime: { value: 0 }, uAspect: { value: 1 }, uWet: { value: 0 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
@@ -82,6 +120,8 @@ async function boot() {
   // Lampenlicht
   for (let i = 0; i < 6; i++) { const l = new THREE.PointLight(0xffd9a0, 0, 34, 2); scene.add(l); lampLights.push(l); }
   headSpot = new THREE.SpotLight(0xfff0d0, 0, 90, 0.5, 0.6, 1.2); scene.add(headSpot); scene.add(headSpot.target);
+  await step(0.62, 'Schatten & Spiegelungen …');
+  setupLighting();
   await step(0.7, 'Karte wird gezeichnet …');
   UI.buildMap();
   await step(0.9, 'Nachbearbeitung …');
@@ -108,6 +148,40 @@ async function boot() {
   G.state = G.state === 'menu' || G.state === 'play' ? G.state : 'menu';
   requestAnimationFrame(loop);
 }
+function fixCSMBias() {
+  if (!csm) return;
+  csm.lights.forEach((l) => { const c = l.shadow.camera, tx = (c.right - c.left) / csm.shadowMapSize; l.shadow.bias = -0.00008; l.shadow.normalBias = clamp(tx * 1.7, 0.05, 2.0); });
+}
+function setupLighting() {
+  const q = G.quality; Hooks.csm = null; Hooks.planar = null; csm = null;
+  if (q.csm && G.settings.shadows) {
+    csm = new CSM({ camera, parent: scene, cascades: q.csm.n, maxFar: q.csm.far, mode: 'practical', shadowMapSize: q.csm.size, lightDirection: new THREE.Vector3(-0.4, -1, -0.3).normalize(), lightIntensity: 3, lightMargin: 450, lightNear: 1, lightFar: 3200, shadowBias: -0.00008 });
+    csm.fade = true; csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov;
+    Hooks.csm = csm; G.csm = csm; sky.attachCSM(csm);
+  }
+  if (q.refl && G.settings.reflections !== false) { Reflect.init(renderer, { enabled: true, ...q.refl }); Hooks.planar = Reflect.uniforms; }
+  else Reflect.init(renderer, { enabled: false });
+  Reflect.hide = [rain.mesh, Markers.group];
+  hookObject(scene);
+  const origAdd = scene.add.bind(scene);
+  scene.add = function (...objs) { origAdd(...objs); for (const o of objs) hookObject(o); return this; };
+}
+const _sv = new THREE.Vector3(), _sf = new THREE.Vector3();
+function updateSunPass(dt) {
+  if (!sunPass || !sunPass.enabled) return;
+  const moon = G.night > 0.55, d = moon ? sky.moonDir : sky.sunDir, u = sunPass.uniforms, w = G.weather;
+  _sv.copy(camera.position).addScaledVector(d, 1000).project(camera);
+  camera.getWorldDirection(_sf);
+  const facing = THREE.MathUtils.smoothstep(_sf.dot(d), -0.12, 0.4);
+  const dayF = moon ? 0.2 * THREE.MathUtils.smoothstep(d.y, 0.1, 0.4) : THREE.MathUtils.smoothstep(d.y, -0.03, 0.1);
+  const hit = TR.rayStatic(camera.position.x, camera.position.y, camera.position.z, d.x, d.y, d.z, 1400);
+  sunOcc = lerp(sunOcc, hit < 1400 ? 0 : 1, Math.min(1, dt * 5));
+  const wea = clamp(1 - w.cloud * 0.6 - w.rain * 0.3 - w.fog * 0.4, 0.04, 1);
+  const vis = (G.state === 'play' || G.state === 'cutscene' || G.state === 'menu') ? facing * dayF * sunOcc * wea : 0;
+  u.uVis.value = vis; u.uSun.value.set(_sv.x * 0.5 + 0.5, _sv.y * 0.5 + 0.5); u.uAspect.value = innerWidth / innerHeight;
+  u.uColor.value.copy(moon ? new THREE.Color(0.6, 0.7, 1) : sky.uniforms.uSunCol.value);
+  const low = 1 - THREE.MathUtils.smoothstep(d.y, 0.0, 0.35); u.uRays.value = 0.5 + low * 0.6; u.uFlare.value = 0.45 + low * 0.2;
+}
 function setupComposer() {
   if (composer) { try { composer.dispose && composer.dispose(); } catch (e) { } }
   const size = renderer.getSize(new THREE.Vector2()), pr = renderer.getPixelRatio();
@@ -117,16 +191,21 @@ function setupComposer() {
   gtao = null;
   if (G.settings.quality === 'ultra' && !document.body.classList.contains('touch')) { try { gtao = new GTAOPass(scene, camera, size.x, size.y); gtao.output = GTAOPass.OUTPUT.Default; gtao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.2, thickness: 1.2, scale: 1.0, samples: 12, distanceFallOff: 1, screenSpaceRadius: false }); gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 }); gtao.blendIntensity = 0.9; composer.addPass(gtao); } catch (e) { console.warn('GTAO nicht verfügbar', e); gtao = null; } }
   bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.38, 0.65, 0.86); composer.addPass(bloom);
+  sunPass = new ShaderPass(SunShader); sunPass.material.defines.SAMPLES = Math.max(6, G.quality.rays || 8); sunPass.enabled = !!G.quality.rays && G.settings.godrays !== false; composer.addPass(sunPass);
   outPass = new OutputPass(); composer.addPass(outPass);
   cinePass = new ShaderPass(CineShader); composer.addPass(cinePass);
 }
 function onResize() {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
   if (composer) { composer.setSize(innerWidth, innerHeight); cinePass.uniforms.uAspect.value = innerWidth / innerHeight; }
+  Reflect.resize(); if (csm) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; }
 }
 G.applySettings = (k) => {
   const s = G.settings; G.quality = QUALITY[s.quality] || QUALITY.high;
-  if (k === 'quality' || k === 'shadows') { renderer.setPixelRatio(Math.min(window.devicePixelRatio, G.quality.pr)); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = s.shadows; sky.setShadowRes(G.quality.shadow); scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); if (k === 'quality') { setupComposer(); UI.toast('Qualität geändert (Gelände-Detail nach Neuladen)'); } }
+  if (k === 'quality') { UI.toast('Qualität wird angewendet – Seite lädt neu …'); try { if (started) Save.save(); } catch (e) { } setTimeout(() => location.reload(), 1000); return; }
+  if (k === 'shadows') { renderer.shadowMap.enabled = s.shadows; UI.toast(s.shadows ? 'Schatten an (Neuladen für Kaskaden-Schatten)' : 'Schatten aus'); }
+  if (k === 'reflections') { Reflect.enabled = !!s.reflections && !!G.quality.refl; if (Reflect.enabled && !Reflect.rt) Reflect.makeRT(); }
+  if (k === 'godrays') { if (sunPass) sunPass.enabled = !!s.godrays && !!G.quality.rays; }
   if (k === 'volume' || k === 'music') Audio.setVolumes();
   if (k === 'touch') { Touch.init(UI); }
   if (k === 'fov') { camera.fov = s.fov; camera.updateProjectionMatrix(); }
@@ -320,8 +399,10 @@ function loop(now) {
   else if (st === 'play' || st === 'cutscene' || st === 'pause' || st === 'dead') CamCtl.update(dt);
   FX.update(dt, camera);
   // Himmel/Wetter
+  camera.updateMatrixWorld();
   const follow = new THREE.Vector3(camera.position.x, 0, camera.position.z);
   const k = sky.update(dt, camera.position, follow);
+  if (csm) { if (Math.abs(camera.fov - lastFov) > 0.35) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; } csm.update(); }
   renderer.toneMappingExposure = sky.exposure;
   updateWorld(dt, camera.position);
   rain.update(dt, camera.position, G.weather.rain, 0.2);
@@ -331,6 +412,7 @@ function loop(now) {
   // Nachbearbeitung
   const q = G.quality; const sp = pl.vehicle ? Math.abs(pl.vehicle.speed) : 0; const target = clamp((sp - 38) / 120, 0, 0.3) * (pl.vehicle && pl.vehicle.kind !== 'boat' ? 1 : 0.4); speedBlur = lerp(speedBlur, target, Math.min(1, dt * 3));
   if (window.__skipRender) { } else if (composer && (G.settings.bloom || true)) {
+    Reflect.update(dt, camera); Reflect.render(scene, camera); updateSunPass(dt);
     bloom.enabled = !!G.settings.bloom && q.bloom !== false && G.settings.quality !== 'low'; bloom.strength = (G.night > 0.4 ? 0.62 : 0.28) + (G.settings.quality === 'ultra' ? 0.1 : 0);
     cinePass.uniforms.uBlur.value = speedBlur; cinePass.uniforms.uTime.value = clockT % 100; cinePass.uniforms.uVig.value = 0.42 + (pl.alive ? 0 : 0.3) + (pl.hp < 30 ? 0.25 : 0);
     composer.render(dt);

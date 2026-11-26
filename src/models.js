@@ -353,6 +353,7 @@ export function buildModel(spec, c1, c2) {
       if (!steer) out.wheels.push; // noop
     }
     out.wb = fzz - rzz; out.fzz = fzz; out.rzz = rzz; out.wx = wx;
+    out.beams = makeBeams(spec.L, parts.lx || spec.W / 2 - 0.3, parts.headY || 0.7); root.add(out.beams);
     // Polizei-Leuchtbalken
     if (spec.special === 'police' || spec.special === 'ambulance' || spec.special === 'fire' || spec.special === 'swat') {
       const lb = new Builder(); const y = (parts.yR || spec.H) + 0.05, z = parts.yR ? (spec.L * ((spec.prof[1] + spec.prof[2]) / 2 - 0.5)) : 0;
@@ -390,6 +391,22 @@ export function buildModel(spec, c1, c2) {
     if (spec.flags.police) { const sl = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.2, 0.3), new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false })); sl.position.set(0, -0.1, 2.2); root.add(sl); out.spot = sl; }
   }
   return out;
+}
+
+function makeBeams(L, lx, hy) {
+  const pos = [], col = [], idx = []; let n = 0;
+  const V = (x, y, z, c) => { pos.push(x, y, z); col.push(c, c * 0.93, c * 0.74); return n++; };
+  const len = 17, rad = 2.7;
+  for (const m of [-1, 1]) {
+    const apex = V(m * lx, hy, L / 2 - 0.05, 0.42), far = [], cx = m * (lx + 0.4), cy = hy - 0.55, cz = L / 2 + len;
+    for (let i = 0; i < 10; i++) { const a = i / 10 * 6.2832; far.push(V(cx + Math.cos(a) * rad, cy + Math.sin(a) * rad * 0.5, cz, 0)); }
+    for (let i = 0; i < 10; i++) idx.push(apex, far[i], far[(i + 1) % 10]);
+    const x0 = m * lx, a = V(x0 - 0.45, 0.045, L / 2 + 1.2, 0.6), b = V(x0 + 0.45, 0.045, L / 2 + 1.2, 0.6), c = V(x0 + 3.4, 0.045, L / 2 + 16, 0), d = V(x0 - 3.4, 0.045, L / 2 + 16, 0);
+    idx.push(a, b, c, a, c, d);
+  }
+  const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3)); g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3)); g.setIndex(idx);
+  g.computeBoundingSphere();
+  const mesh = new THREE.Mesh(g, M.beam); mesh.visible = false; mesh.renderOrder = 6; mesh.frustumCulled = true; return mesh;
 }
 
 export function paintVehicleColors(out, c1, c2) {

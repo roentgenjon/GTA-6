@@ -387,6 +387,7 @@ export class Vehicle {
     const brk = !this.wreck && (this.input.brake > 0.1 && this.speed > 0.3 || this.input.handbrake);
     const rev = this.speed < -0.5 && this.input.brake > 0;
     for (const tm of m.tailMats) tm.color.setRGB(brk ? 2.2 : (hOn ? 0.8 : 0.25), brk ? 0.1 : (hOn ? 0.04 : 0.03), brk ? 0.1 : 0.04);
+    if (m.beams) { const dc = G.camera ? this.pos.distanceToSquared(G.camera.position) : 0, fog = G.weather ? G.weather.fog : 0, rn = G.weather ? G.weather.rain : 0; m.beams.visible = !!(hOn && !this.wreck && (G.night > 0.12 || rn > 0.4 || fog > 0.4) && dc < 140 * 140 && G.beamsOn !== false); }
     if (m.siren) { const on = this.sirenOn && !this.wreck; m.siren.visible = on ? (Math.floor(G.clock * 7) % 2 === 0) : true; m.siren.scale.x = on ? (Math.floor(G.clock * 7) % 2 ? 1 : -1) : 1; if (!on) m.siren.visible = true; }
   }
   dispose() {
