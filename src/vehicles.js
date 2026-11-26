@@ -139,7 +139,7 @@ export class Vehicle {
       if (I.handbrake && sp > 6) wt *= 1.45;
       // Übersteuern bei viel Gas in Sportwagen
       if (I.throttle > 0.85 && s.acc > 10 && sp > 8 && sp < 30) wt *= 1.12;
-      wt = clamp(wt, -2.4, 2.4);
+      const wmax = Math.min(2.4, 0.75 + 30 / (sp + 6)) * (I.handbrake ? 1.15 : 1) * (bike ? 1.1 : 1); wt = clamp(wt, -wmax, wmax);
       this.angVel = damp(this.angVel, wt, 7 + surf * 3, dt);
     }
     this.yaw = wrapAngle(this.yaw + this.angVel * dt);

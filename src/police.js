@@ -169,7 +169,7 @@ export const Police = {
     const pl = G.player; if (!pl.alive || pl.vehicle && Math.abs(pl.vehicle.speed) > 3 || this.busted) { this.arrestT = 0; return; }
     let near = false;
     for (const p of G.entities.peds) { if (p.role !== 'cop' || p.dead) continue; if (Math.hypot(p.pos.x - pl.pos.x, p.pos.z - pl.pos.z) < (pl.vehicle ? 3.8 : 2.0) && p.copRole === 'cop') { near = true; break; } }
-    if (near && (this.level <= 2 || !pl.weapon || pl.weapon.melee) && pl.speed < 2.5) { this.arrestT += dt; if (this.arrestT > 1.6) this.arrest(); } else this.arrestT = Math.max(0, this.arrestT - dt);
+    if (near && this.level <= 3 && !pl.aiming && pl.speed < 2.5) { this.arrestT += dt; if (this.arrestT > 1.6) this.arrest(); } else this.arrestT = Math.max(0, this.arrestT - dt);
   },
   arrest() {
     this.busted = true; G.stats.arrests++; emit('busted');

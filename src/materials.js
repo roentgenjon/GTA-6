@@ -26,7 +26,7 @@ export function initMaterials() {
   M.terrain = new THREE.MeshStandardMaterial({ vertexColors: true, map: T.detailTexture(), roughness: 0.96, metalness: 0 });
   M.terrain.map.repeat.set(1, 1);
   M.lamp = new THREE.MeshBasicMaterial({ color: 0xfff0c0, toneMapped: false });
-  M.glow = new THREE.PointsMaterial({ map: T.glowTexture(), size: 14, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffd9a0, opacity: 0, sizeAttenuation: true, fog: false });
+  M.glow = new THREE.PointsMaterial({ map: T.glowTexture(), size: 9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffd9a0, opacity: 0, sizeAttenuation: true, fog: false });
   M.tl = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   M.car = (color, rough = 0.28, metal = 0.7) => new THREE.MeshPhysicalMaterial({ color, roughness: rough, metalness: metal, clearcoat: 1, clearcoatRoughness: 0.06, vertexColors: true });
 }
@@ -37,7 +37,7 @@ export function updateMaterials(night, wet, rain) {
   const n = 0.5 + night * 0.9;
   M.neon.color.setRGB(n, n, n);
   M.lamp.color.setRGB(0.25 + night * 1.2, 0.22 + night * 1.0, 0.15 + night * 0.7);
-  M.glow.opacity = night * 0.85;
+  M.glow.opacity = night * 0.6;
   M.road.roughness = 0.92 - wet * 0.72; M.plain.roughness = 0.92 - wet * 0.72;
   const dk = 1 - wet * 0.35; M.road.color.setRGB(dk, dk, dk); M.plain.color.setRGB(dk, dk, dk);
   M.slab.roughness = 0.88 - wet * 0.5;

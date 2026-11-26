@@ -46,6 +46,7 @@ export function terrainHeight(x, z) {
   if (sE > -300 && sE < 0) h *= 1 - smoothstep(-300, 0, sE);
   if (sS > -300 && sS < 0) h *= 1 - smoothstep(-300, 0, sS);
   if (s > 0) h = -Math.min(s * 0.06 + 0.2 * Math.min(s, 3), 70);
+  if (x > BAY.x0 && x < BAY.x1 && z > BAY.z0) { const sb2 = Math.min(x - BAY.x0, BAY.x1 - x, z - BAY.z0 + 40); if (sb2 > 0) h = Math.min(h, -clamp(1.3 + sb2 * 0.3, 0, 9)); }
   // Insel
   const di = Math.hypot(x - ISLAND.x, z - ISLAND.z);
   if (di < ISLAND.r * 1.9) { const b = smoothstep(ISLAND.r * 1.9, ISLAND.r * 0.35, di); h = Math.max(h, -45 + b * 52 + fbm(x / 40, z / 40, 3) * 3 * b); }

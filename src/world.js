@@ -90,8 +90,8 @@ function buildOcean(scene, sky) {
         vec3 N = normalize(vN + vec3(noise(q)-.5, 0., noise(q+7.3)-.5)*0.28 + vec3(noise(q*3.1)-.5,0.,noise(q*2.7+1.)-.5)*0.12);
         float fr = pow(1.-max(dot(N,V),0.), 4.0); fr = clamp(0.04+0.96*fr, 0., 1.);
         vec3 R = reflect(-V,N);
-        vec3 deep = vec3(0.01,0.12,0.2), shallow = vec3(0.07,0.5,0.52);
-        float sh = clamp(vDepth/7., 0., 1.);
+        vec3 deep = vec3(0.0,0.07,0.15), shallow = vec3(0.05,0.42,0.48);
+        float sh = clamp(vDepth/4.5, 0., 1.);
         vec3 body = mix(shallow, deep, sqrt(sh));
         float lightK = 0.35 + 0.65*(1.-uNight);
         body *= lightK; body = mix(body, body*vec3(0.6,0.65,0.7), uRain);
@@ -99,7 +99,7 @@ function buildOcean(scene, sky) {
         vec3 col = mix(body, sky, fr);
         float sp = pow(max(dot(R, uSun),0.), 280.)*2.5 * (1.-uRain) * smoothstep(0.,0.15,uSun.y);
         col += uSunCol*sp;
-        float foam = smoothstep(1.4, 0.0, vDepth + (noise(vW.xz*0.5+uTime*0.3)-.5)*1.4);
+        float foam = smoothstep(0.7, 0.0, vDepth + (noise(vW.xz*0.5+uTime*0.3)-.5)*0.9);
         foam *= 0.55+0.45*sin(vDepth*2.5 - uTime*1.5);
         col = mix(col, vec3(0.92,0.95,0.97)*lightK, clamp(foam,0.,1.)*0.8);
         float alpha = clamp(vDepth*1.3 + 0.35, 0., 1.);

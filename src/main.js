@@ -46,7 +46,7 @@ const CineShader = {
   float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
   void main(){ vec2 d = vUv-0.5; float r = length(d*vec2(uAspect,1.0));
     vec3 col = vec3(0.0); const int N=8; for(int i=0;i<N;i++){ float t=float(i)/float(N); col += texture2D(tDiffuse, vUv - d*uBlur*t*0.14).rgb; } col/=float(N);
-    float ca = 0.0015 + uBlur*0.004; col.r = mix(col.r, texture2D(tDiffuse, vUv - d*ca*2.0).r, 0.6); col.b = mix(col.b, texture2D(tDiffuse, vUv + d*ca*2.0).b, 0.6);
+    float ca = 0.0012 + uBlur*0.0015; col.r = mix(col.r, texture2D(tDiffuse, vUv - d*ca*2.0).r, 0.6); col.b = mix(col.b, texture2D(tDiffuse, vUv + d*ca*2.0).b, 0.6);
     float l = dot(col, vec3(0.299,0.587,0.114)); col = mix(vec3(l), col, 1.08);
     col = mix(col, col*vec3(1.04,1.0,0.95), 0.4);
     col *= 1.0 - uVig*smoothstep(0.35,1.0,r*1.15);
@@ -161,7 +161,7 @@ G.continueGame = (fromPause) => {
   for (const st of G.profile.street || []) { const rec = G.profile.garage.find((g) => g.uid === st.uid); if (rec) Eco.materialize(rec, st.x, st.z, st.yaw); }
   Eco.updateGarage();
   started = true; Race.markers(); Missions.refreshMarkers();
-  if (G.profile.story.done.length === 0 && !Missions.isDone('m1')) setTimeout(() => Missions.start('m1'), 500);
+  if (G.profile.story.done.length === 0 && !Missions.isDone('m1') && pos.x < -1300) setTimeout(() => Missions.start('m1'), 500);
   CamCtl.init = false; G.state = 'play'; UI.showHud(true); UI.fade(false, 600); $menuHide(); Input.lock(document.getElementById('game'));
 };
 function $menuHide() { document.getElementById('menu').classList.add('hidden'); }
@@ -319,7 +319,7 @@ function loop(now) {
   Audio.update(dt); Audio.radioTick(dt);
   UI.update(dt);
   // Nachbearbeitung
-  const q = G.quality; const sp = pl.vehicle ? Math.abs(pl.vehicle.speed) : 0; const target = clamp((sp - 22) / 70, 0, 0.55) * (pl.vehicle && pl.vehicle.kind !== 'boat' ? 1 : 0.5); speedBlur = lerp(speedBlur, target, Math.min(1, dt * 3));
+  const q = G.quality; const sp = pl.vehicle ? Math.abs(pl.vehicle.speed) : 0; const target = clamp((sp - 38) / 120, 0, 0.3) * (pl.vehicle && pl.vehicle.kind !== 'boat' ? 1 : 0.4); speedBlur = lerp(speedBlur, target, Math.min(1, dt * 3));
   if (window.__skipRender) { } else if (composer && (G.settings.bloom || true)) {
     bloom.enabled = !!G.settings.bloom && q.bloom !== false && G.settings.quality !== 'low'; bloom.strength = (G.night > 0.4 ? 0.62 : 0.28) + (G.settings.quality === 'ultra' ? 0.1 : 0);
     cinePass.uniforms.uBlur.value = speedBlur; cinePass.uniforms.uTime.value = clockT % 100; cinePass.uniforms.uVig.value = 0.42 + (pl.alive ? 0 : 0.3) + (pl.hp < 30 ? 0.25 : 0);

@@ -198,12 +198,14 @@ export function defineMissions() {
     const sp = { x: AIR.x + 30, z: AIR.z + 20 };
     return [
       S.run(() => { G.player.teleport(AIR.x + 10, AIR.z, Math.PI / 2); G.weather.forced = 'clear'; G.weather.set('clear', true); G.hour = 9.2; }),
+      S.run((m) => { const pl = G.player; const look = randomLook('civ'); Object.assign(look, { female: true, hair: 4, hairColor: 0x3b2a1a, top: 1, topColor: 0xff6b9a, bottom: 0, bottomColor: 0x2c3e66, shoe: 0, shoeColor: 0xf0f0f0, hat: 0, glasses: true, skin: 0xe0ac69 }); const p = Peds.spawnAt(pl.pos.x + 1.4, pl.pos.z + 1.2, 'civ', look); p.persistent = true; p.noRemove = true; p.name = 'Mia'; p.brain = (pp) => { pp.moveSpeed = 0; pp.faceLock = true; pp.faceYaw = Math.atan2(pl.pos.x - pp.pos.x, pl.pos.z - pp.pos.z); pp.yaw = pp.faceYaw; }; m.peds.push(p); m.mia = p; }),
       S.say([
         { who: 'Mia', text: 'Sieh dir das an, Leo. Vice City. Fünf Jahre, und es sieht immer noch aus wie ein Werbeprospekt.' },
         { who: 'Leo', text: 'Ein Prospekt mit Zähnen. Wir haben nichts, Mia. Kein Geld, keine Kontakte.' },
         { who: 'Mia', text: 'Dante schuldet dir einen Gefallen. Seine Werkstatt ist in Neon District. Dort wartet ein Wagen auf dich.' },
         { who: 'Leo', text: 'Dann fangen wir an. Und diesmal ohne Fehler.' },
       ], around({ x: AIR.x + 10, z: AIR.z }, 0.8, 5)),
+      S.run((m) => { if (m.mia) { m.mia.brain = null; m.mia.noRemove = false; m.mia.state = 'walk'; m.mia.despawn = 15; } }),
       S.vehicle('car', 'sedan_2', AIR.x + 34, AIR.z - 6, Math.PI / 2, { c1: 0x9a2a2a, c2: null }),
       S.enter('car', 'Steig in den Wagen (F)'),
       S.goto(() => poi('dante'), null, 'Fahre zu Dante\'s Autoteile', { r: 6, veh: true }),

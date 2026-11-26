@@ -237,18 +237,19 @@ export const UI = {
   // ---------------- Pause-/Hauptmenü ----------------
   TABS: [['map', 'Karte'], ['missions', 'Missionen'], ['phone', 'Handy'], ['char', 'Charakter'], ['inv', 'Inventar'], ['garage', 'Garage'], ['props', 'Immobilien'], ['stats', 'Statistik'], ['settings', 'Einstellungen'], ['controls', 'Steuerung'], ['save', 'Speichern']],
   openMenu(tab = 'map', fromTitle = false) {
+    if (!fromTitle) this.hud.style.visibility = 'hidden';
     if (G.state === 'play' || G.state === 'menu' || G.state === 'pause') { if (G.state === 'play') { G.state = 'pause'; Input.unlock(); } }
     this.fromTitle = fromTitle; if (fromTitle) { this.menuMode = 'title'; } else this.menuMode = 'game';
     this.tab = tab; this.renderMenu(); if (G.state === 'pause') Audio.play('ui');
   },
-  closeMenu() { const m = $('#menu'); m.classList.add('hidden'); this.mapRaf = null; if (this.menuMode === 'title') { $('#title').classList.remove('hidden'); G.state = 'menu'; return; } if (G.state === 'pause') { G.state = 'play'; Input.lock(document.getElementById('game')); } },
+  closeMenu() { const m = $('#menu'); m.classList.add('hidden'); this.mapRaf = null; this.hud.style.visibility = ''; if (this.menuMode === 'title') { $('#title').classList.remove('hidden'); G.state = 'menu'; return; } if (G.state === 'pause') { G.state = 'play'; Input.lock(document.getElementById('game')); } },
   renderMenu() {
     const m = $('#menu'); m.classList.remove('hidden'); m.classList.toggle('transparent', this.tab === 'char' && this.menuMode === 'game');
     if (this.menuMode === 'title') $('#title').classList.add('hidden');
     const tabs = this.menuMode === 'title' ? this.TABS.filter((t) => ['settings', 'controls'].includes(t[0])) : this.TABS;
     m.innerHTML = `<div class="win"><div class="tabs">${tabs.map(([k, n]) => `<button class="tab ${k === this.tab ? 'active' : ''}" data-tab="${k}">${n}</button>`).join('')}<span style="flex:1"></span><button class="tab" data-close="1">✕ Schließen</button></div><div class="pane" id="pane"></div></div>`;
     m.onclick = (e) => { const t = e.target.closest('[data-tab]'); if (t) { this.tab = t.dataset.tab; Audio.play('ui'); this.renderMenu(); return; } if (e.target.closest('[data-close]')) this.closeMenu(); };
-    const pane = $('#pane'); (this['pane_' + this.tab] || (() => { }))(pane);
+    const pane = $('#pane'); const pf = this['pane_' + this.tab]; if (pf) pf.call(this, pane);
   },
   // ---- Karte ----
   pane_map(pane) {
