@@ -39,12 +39,13 @@ export const Admin = {
   close() { this.open = false; if (this.root) this.root.style.display = 'none'; try { if (!document.body.classList.contains('touch') && G.state === 'play') Input.lock(document.getElementById('game')); } catch (e) { } },
   // ---------- Hilfsfunktionen für die Oberfläche ----------
   el(tag, props = {}, kids = []) { const e = document.createElement(tag); Object.assign(e, props); for (const k of [].concat(kids)) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k)); return e; },
-  button(label, fn, cls = '') { const b = this.el('button', { className: 'ab ' + cls, textContent: label }); b.addEventListener('click', () => { try { fn(b); } catch (e) { emit('toast', 'Fehler: ' + e.message); } this.refreshHdr(); }); return b; },
-  toggleBtn(label, get, set) { const b = this.button('', () => { set(!get()); paint(); }); const paint = () => { b.textContent = (get() ? '✅ ' : '⬜ ') + label; b.classList.toggle('on', !!get()); }; paint(); return b; },
+  button(label, fn, cls = '') { const b = this.el('button', { className: 'ab ' + cls, textContent: label }); b.addEventListener('click', () => { b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 350); try { fn(b); } catch (e) { emit('toast', 'Fehler: ' + e.message); } this.refreshHdr(); }); return b; },
+  toggleBtn(label, get, set) { const b = this.button('', () => { set(!get()); paint(); this.say(label + ': ' + (get() ? 'AN' : 'AUS')); }); const paint = () => { b.textContent = (get() ? '✅ ' : '⬜ ') + label; b.classList.toggle('on', !!get()); }; paint(); return b; },
   group(title, kids) { return this.el('div', { className: 'ag' }, [this.el('h4', { textContent: title }), this.el('div', { className: 'ar' }, kids)]); },
   num(ph, val = '', w = 90) { const i = this.el('input', { type: 'text', inputMode: 'decimal', placeholder: ph, value: val }); i.style.width = w + 'px'; i.addEventListener('keydown', (e) => e.stopPropagation()); return i; },
   txt(ph, val = '', w = 200) { const i = this.el('input', { type: 'text', placeholder: ph, value: val }); i.style.width = w + 'px'; i.addEventListener('keydown', (e) => e.stopPropagation()); return i; },
-  say(t) { emit('toast', '🛡 ' + t); },
+  say(t) { emit('toast', '🛡 ' + t); this.lastStatus = t; this.paintStatus(true); },
+  paintStatus(flash) { const s = this.statusEl; if (!s) return; s.textContent = this.lastStatus ? '✔ ' + this.lastStatus : 'Tippe einen Knopf – hier erscheint die Rückmeldung.'; if (flash) { s.classList.remove('flash'); void s.offsetWidth; s.classList.add('flash'); } },
   pos() { const pl = G.player, v = pl.vehicle; return v ? v.pos : pl.pos; },
   ahead(d = 6) { const pl = G.player; return { x: pl.pos.x + Math.sin(pl.camYaw) * d, z: pl.pos.z + Math.cos(pl.camYaw) * d }; },
   tp(x, z) {
@@ -62,7 +63,7 @@ export const Admin = {
     ]); this.info = head.querySelector('.ainfo');
     const bar = this.el('div', { className: 'atabs' }, tabs.map(([k, n]) => { const b = this.button(n, () => { this.tab = k; this.render(); }, k === this.tab ? 'on' : ''); return b; }));
     const body = this.el('div', { className: 'abody' }); this['tab_' + this.tab](body);
-    this.root.append(head, bar, body); this.refreshHdr();
+    this.statusEl = this.el('div', { className: 'astatus' }); this.root.append(head, bar, body, this.statusEl); this.paintStatus(false); this.refreshHdr();
   },
   refreshHdr() {
     if (!this.open || !this.info || !G.player) return; const pl = G.player, p = this.pos();
@@ -115,10 +116,12 @@ export const Admin = {
     const draw = () => {
       list.innerHTML = ''; const s = q.value.trim().toLowerCase(); let n = 0;
       for (const c of CATALOG) { if (st.cls && c.cls !== st.cls) continue; if (s && !(c.name.toLowerCase().includes(s) || String(c.cls).includes(s) || c.id.includes(s))) continue; if (++n > 120) break;
-        list.append(this.button(`${c.name} · ${(CLSMAP[c.cls] && CLSMAP[c.cls].label) || c.cls}${c.price ? ' · ' + fmt(c.price) : ''}`, () => spawn(c, st.enter && st.n === 1), 'li')); }
+        const it = this.button(`${c.name} · ${(CLSMAP[c.cls] && CLSMAP[c.cls].label) || c.cls}${c.price ? ' · ' + fmt(c.price) : ''}`, () => { st.sel = c; for (const x of list.children) x.classList && x.classList.remove('sel'); it.classList.add('sel'); selLbl.textContent = 'Ausgewählt: ' + c.name; this.say('Ausgewählt: ' + c.name + ' – jetzt SPAWN drücken'); }, 'li' + (st.sel && st.sel.id === c.id ? ' sel' : '')); list.append(it); }
       if (!n) list.append('Nichts gefunden.');
     };
     q.addEventListener('input', draw);
+    const selLbl = this.el('span', { className: 'asel', textContent: st.sel ? 'Ausgewählt: ' + st.sel.name : 'Kein Fahrzeug ausgewählt – unten in der Liste eines antippen' });
+    const spawnBtn = this.button('🚗 SPAWN', () => { if (!st.sel) return this.say('Erst unten in der Liste ein Fahrzeug antippen'); spawn(st.sel, st.enter && st.n === 1); }, 'on big');
     const cur = () => pl.vehicle;
     const chips = this.el('div', { className: 'ar' }, [this.button('Alle', () => { st.cls = ''; this.render(); }, st.cls === '' ? 'on' : ''), ...Object.keys(CLSMAP).map((k) => this.button(CLSMAP[k].label, () => { st.cls = k; this.render(); }, st.cls === k ? 'on' : ''))]);
     b.append(this.group('Aktuelles Fahrzeug', [
@@ -136,7 +139,8 @@ export const Admin = {
       ...[1, 3, 5, 10].map((n) => this.button('×' + n, () => { st.n = n; this.render(); }, st.n === n ? 'on' : ''))]));
     b.append(this.group('Farbe', COLORS.map(([n, c]) => this.button(n, () => { st.color = c; this.render(); }, st.color === c ? 'on' : ''))));
     b.append(this.group('Kategorie', [chips]));
-    b.append(this.group('Spawnen (' + CATALOG.length + ' Modelle)', [q]), list); draw();
+    list.style.maxHeight = '30vh'; // Spawn-Leiste, Suche und Liste stehen ganz oben, die Optionen darunter
+    b.prepend(list); b.prepend(this.group('Fahrzeug suchen (' + CATALOG.length + ' Modelle)', [q])); b.prepend(this.el('div', { className: 'aspawn' }, [selLbl, spawnBtn])); draw();
   },
   // ---------- Welt ----------
   tab_world(b) {

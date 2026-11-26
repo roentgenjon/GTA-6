@@ -225,3 +225,10 @@ body.touch #adminbtn { left: calc(40px + env(safe-area-inset-left)); bottom: cal
 #adminpanel .ameta { font-size: 12px; color: var(--dim); margin: 6px 0; white-space: pre-wrap; }
 #adminpanel textarea, #adminpanel input[type=text] { background: #1c1236; color: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
 .mpchat .mpmsg.ann { background: rgba(255,61,187,.35); }
+
+#adminpanel .astatus { padding: 10px 14px; border-top: 1px solid var(--line); background: rgba(40,20,80,.9); font-size: 14px; font-weight: 600; color: #9dffb0; border-radius: 0 0 14px 14px; }
+#adminpanel .astatus.flash { animation: aflash .9s ease-out; } @keyframes aflash { from { background: #35ffb4; color: #000; } to { background: rgba(40,20,80,.9); } }
+#adminpanel .ab.flash { transform: scale(.94); background: #ff3dbb; }
+#adminpanel .ab.sel { background: linear-gradient(135deg, #35c9ff, #7846ff); border-color: #35ffb4; }
+#adminpanel .ab.big { font-size: 17px; font-weight: 800; padding: 14px 26px; min-height: 52px; }
+#adminpanel .aspawn { position: sticky; top: 0; z-index: 2; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; background: rgba(14,7,30,.98); padding: 8px 0; border-bottom: 1px solid var(--line); margin-bottom: 6px; } #adminpanel .asel { flex: 1; min-width: 160px; color: var(--cyan); font-size: 13px; }
