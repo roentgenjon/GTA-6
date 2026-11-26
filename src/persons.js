@@ -3,6 +3,8 @@ import * as THREE from 'three';
 import { Builder, rgb } from './builder.js';
 import { M } from './materials.js';
 import { clamp, lerp, damp, pick, rnd } from './util.js';
+import { buildBody } from './bodies.js';
+import { G } from './game.js';
 
 export const SKINS = [0xffdbb4, 0xf1c27d, 0xe0ac69, 0xc68642, 0x8d5524, 0x6b4226, 0x4a2c17, 0xf5cba7];
 export const HAIR_STYLES = ['Glatze', 'Kurz', 'Buzz Cut', 'Lang', 'Pferdeschwanz', 'Irokese', 'Afro', 'Dutt'];
@@ -29,7 +31,7 @@ export function randomLook(kind = 'civ') {
     female, skin: pick(SKINS), hair: female ? pick([1, 3, 3, 4, 7, 6]) : pick([0, 1, 1, 2, 2, 5, 6]), hairColor: pick(HAIR_COLORS.slice(0, 8)),
     top: pick([0, 0, 1, 2, 3, 6]), topColor: pick(COLOR_SWATCH), bottom: female && Math.random() < 0.3 ? 4 : pick([0, 0, 1, 2, 3]), bottomColor: pick([0x2c3e66, 0x1b1d24, 0x6b4a2f, 0x8a8f99, 0xf5d68a, 0x3d5a40, 0xb0586b]),
     shoe: pick([0, 0, 1, 2, 3]), shoeColor: pick([0xf0f0f0, 0x151515, 0x6b4a2f, 0xcc3333]), hat: Math.random() < 0.12 ? pick([1, 2, 3]) : 0, glasses: Math.random() < 0.18,
-    scale: 0.94 + Math.random() * 0.14, fat: 0.9 + Math.random() * 0.3, shirt: 0xffffff,
+    scale: 0.94 + Math.random() * 0.14, fat: 0.9 + Math.random() * 0.3, shirt: 0xffffff, eye: pick([0x3a2a1a, 0x5a3b22, 0x2f5f8a, 0x4a7a4a, 0x6a6a6a]),
   };
   if (kind === 'cop') Object.assign(look, { top: 2, topColor: 0x27416f, bottom: 2, bottomColor: 0x181d28, shoe: 2, shoeColor: 0x0d0d0d, hat: 1, hatColor: 0x1d2c4a, hair: 1, glasses: Math.random() < 0.3, female: Math.random() < 0.2 });
   if (kind === 'swat') Object.assign(look, { top: 1, topColor: 0x15171c, bottom: 3, bottomColor: 0x15171c, shoe: 1, shoeColor: 0x101010, hat: 4, hatColor: 0x20232a, glasses: true, female: false });
@@ -37,85 +39,23 @@ export function randomLook(kind = 'civ') {
   if (kind === 'army') Object.assign(look, { top: 2, topColor: 0x4b5a3a, bottom: 3, bottomColor: 0x4b5a3a, shoe: 1, shoeColor: 0x111111, hat: 4, hatColor: 0x4b5a3a, glasses: true, female: false });
   return look;
 }
-export function playerLook() { return { female: false, skin: SKINS[1], hair: 1, hairColor: HAIR_COLORS[1], ...OUTFITS[0].look, scale: 1, fat: 1, shirt: 0xffffff, outfit: 'casual' }; }
+export function playerLook() { return { female: false, skin: SKINS[1], hair: 1, hairColor: HAIR_COLORS[1], ...OUTFITS[0].look, scale: 1, fat: 1, shirt: 0xffffff, outfit: 'casual', eye: 0x5a3b22 }; }
 
 const BONES = ['hips', 'spine', 'head', 'shL', 'elL', 'shR', 'elR', 'thL', 'knL', 'thR', 'knR'];
-const REST = { hips: [0, 0.95, 0], spine: [0, 0.06, 0], head: [0, 0.54, 0], shL: [0.2, 0.46, 0], elL: [0, -0.3, 0], shR: [-0.2, 0.46, 0], elR: [0, -0.3, 0], thL: [0.09, -0.04, 0], knL: [0, -0.44, 0], thR: [-0.09, -0.04, 0], knR: [0, -0.44, 0] };
+const REST = { hips: [0, 0.95, 0], spine: [0, 0.06, 0], head: [0, 0.54, 0], shL: [0.225, 0.46, 0], elL: [0.03, -0.3, 0], shR: [-0.225, 0.46, 0], elR: [-0.03, -0.3, 0], thL: [0.09, -0.04, 0], knL: [0, -0.44, 0], thR: [-0.09, -0.04, 0], knR: [0, -0.44, 0] };
 const PARENT = { spine: 'hips', head: 'spine', shL: 'spine', elL: 'shL', shR: 'spine', elR: 'shR', thL: 'hips', knL: 'thL', thR: 'hips', knR: 'thR' };
 const WORLD = {};
 for (const b of BONES) { const p = PARENT[b]; WORLD[b] = p ? [WORLD[p][0] + REST[b][0], WORLD[p][1] + REST[b][1], WORLD[p][2] + REST[b][2]] : [...REST[b]]; }
 
 const geoCache = new Map();
-function buildGeom(look) {
-  const key = JSON.stringify(look, (k, v) => (k === 'scale' ? undefined : v));
+// level: 0 fern, 1 mittel, 2 voll; -1 = je nach Qualitätsstufe (lite → mittel)
+function buildGeom(look, forceLevel = -1) {
+  const level = forceLevel >= 0 ? forceLevel : (G.quality && G.quality.lite ? 1 : 2);
+  const key = level + JSON.stringify(look, (k, v) => (k === 'scale' ? undefined : v));
   const hit = geoCache.get(key); if (hit) return hit;
-  const B = new Builder(), idx = (n) => BONES.indexOf(n);
-  const skin = look.skin, fem = look.female, fat = look.fat || 1;
-  const topC = look.topColor, botC = look.bottomColor, shirt = look.shirt || 0xffffff;
-  const part = (bone, cx, cy, cz, w, h, d, col, opt) => { B.bone = idx(bone); const W = WORLD[bone]; B.box(W[0] + cx, W[1] + cy, W[2] + cz, w, h, d, col, opt || { noBottom: false }); };
-  const sw = fem ? 0.34 : 0.4;
-  // Torso
-  const tt = look.top;
-  const longSleeve = [1, 2, 4, 5].includes(tt);
-  let torsoCol = topC;
-  if (tt === 4) { part('spine', 0, 0.26, 0, sw * fat, 0.52, 0.24, topC); part('spine', 0, 0.3, 0.125, 0.1, 0.4, 0.02, shirt); part('spine', 0, 0.28, 0.13, 0.03, 0.34, 0.02, look.tieColor || 0xb0123f); }
-  else if (tt === 5) { part('spine', 0, 0.26, 0, (sw + 0.03) * fat, 0.52, 0.26, topC); part('spine', 0, 0.3, 0.135, 0.06, 0.46, 0.02, 0x555555); }
-  else if (tt === 3) { part('spine', 0, 0.26, 0, sw * fat, 0.52, 0.22, topC); part('spine', 0, 0.5, 0, sw * fat + 0.01, 0.1, 0.23, skin); }
-  else if (tt === 6) { part('spine', 0, 0.26, 0, sw * fat, 0.52, 0.23, topC); part('spine', 0, 0.3, 0.12, 0.34, 0.4, 0.02, 0xfff3b0); }
-  else part('spine', 0, 0.26, 0, sw * fat, 0.52, 0.23, topC);
-  // Hüfte
-  const bt = look.bottom, botCol = botC;
-  part('hips', 0, 0.0, 0, (fem ? 0.38 : 0.34) * fat, 0.18, 0.23, botCol);
-  if (bt === 4) part('hips', 0, -0.2, 0, 0.42 * fat, 0.3, 0.28, botCol);
-  // Kopf
-  const hd = 0.235;
-  part('head', 0, 0.12, 0, 0.2, hd, 0.22, skin);
-  part('head', 0, -0.0, 0, 0.07, 0.08, 0.07, skin);
-  part('head', 0, 0.12, 0.112, 0.2, 0.02, 0.01, 0xffffff, { noBottom: true }); // Gesicht dient Schattierung
-  part('head', -0.045, 0.14, 0.116, 0.035, 0.02, 0.012, 0x1a1a1a); part('head', 0.045, 0.14, 0.116, 0.035, 0.02, 0.012, 0x1a1a1a);
-  const hc = look.hairColor;
-  switch (look.hair) {
-    case 1: part('head', 0, 0.24, -0.01, 0.22, 0.07, 0.25, hc); part('head', 0, 0.2, -0.1, 0.22, 0.12, 0.04, hc); break;
-    case 2: part('head', 0, 0.235, 0, 0.205, 0.025, 0.225, hc); break;
-    case 3: part('head', 0, 0.23, -0.01, 0.23, 0.08, 0.26, hc); part('head', 0, 0.0, -0.1, 0.23, 0.42, 0.05, hc); part('head', 0.108, 0.1, 0, 0.03, 0.22, 0.22, hc); part('head', -0.108, 0.1, 0, 0.03, 0.22, 0.22, hc); break;
-    case 4: part('head', 0, 0.24, -0.01, 0.22, 0.07, 0.25, hc); part('head', 0, 0.12, -0.15, 0.07, 0.07, 0.1, hc); part('head', 0, -0.05, -0.17, 0.06, 0.3, 0.06, hc); break;
-    case 5: part('head', 0, 0.3, 0, 0.05, 0.12, 0.26, hc); break;
-    case 6: part('head', 0, 0.22, -0.01, 0.34, 0.26, 0.34, hc); break;
-    case 7: part('head', 0, 0.24, -0.01, 0.22, 0.07, 0.25, hc); part('head', 0, 0.34, -0.06, 0.1, 0.1, 0.1, hc); break;
-  }
-  const hatC = look.hatColor || look.topColor;
-  switch (look.hat) {
-    case 1: part('head', 0, 0.255, 0, 0.225, 0.07, 0.24, hatC); part('head', 0, 0.225, 0.17, 0.2, 0.02, 0.14, hatC); break;
-    case 2: part('head', 0, 0.26, 0, 0.225, 0.1, 0.24, look.hatColor || 0x333333); break;
-    case 3: part('head', 0, 0.255, 0, 0.3, 0.03, 0.34, 0x3a2a1a); part('head', 0, 0.3, 0, 0.18, 0.1, 0.2, 0x3a2a1a); break;
-    case 4: part('head', 0, 0.26, 0, 0.245, 0.14, 0.27, look.hatColor || 0x20232a); break;
-  }
-  if (look.glasses) { part('head', 0, 0.14, 0.118, 0.2, 0.04, 0.015, 0x0a0a0a); }
-  if (look.hat === 1 && look.hatColor === 0x1d2c4a) part('head', 0, 0.265, 0.12, 0.04, 0.03, 0.01, 0xe8c547);
-  // Arme
-  const armSkin = [0, 3, 6, 4].includes(tt) ? (tt === 3 ? skin : tt === 6 || tt === 0 ? skin : topC) : topC;
-  const sleeveFull = longSleeve;
-  for (const s of ['L', 'R']) {
-    const sh = 'sh' + s, el = 'el' + s;
-    const upperCol = tt === 3 ? skin : topC, foreCol = sleeveFull ? topC : skin;
-    part(sh, 0, -0.14, 0, 0.1 * fat, 0.3, 0.11, upperCol);
-    part(el, 0, -0.13, 0, 0.088 * fat, 0.28, 0.095, foreCol);
-    part(el, 0, -0.3, 0, 0.075, 0.1, 0.09, skin);
-  }
-  // Beine
-  for (const s of ['L', 'R']) {
-    const th = 'th' + s, kn = 'kn' + s;
-    const shorts = bt === 1 || bt === 4;
-    part(th, 0, -0.21, 0, 0.155 * fat, 0.44, 0.17, bt === 1 ? botCol : (bt === 4 ? skin : botCol));
-    part(kn, 0, -0.2, 0, 0.125 * fat, 0.4, 0.135, shorts ? skin : botCol);
-    const sc = look.shoeColor; const sh = look.shoe;
-    if (sh === 3) { part(kn, 0, -0.43, 0.04, 0.12, 0.03, 0.26, sc); part(kn, 0, -0.41, 0.03, 0.1, 0.03, 0.2, skin); }
-    else if (sh === 1) { part(kn, 0, -0.38, 0.0, 0.135, 0.12, 0.14, sc); part(kn, 0, -0.43, 0.05, 0.14, 0.08, 0.27, sc); }
-    else part(kn, 0, -0.42, 0.05, 0.135, 0.08, 0.27, sc);
-  }
-  const g = B.build(true);
+  const g = buildBody(look, level);
   geoCache.set(key, g);
-  if (geoCache.size > 400) { const k0 = geoCache.keys().next().value; geoCache.get(k0).dispose(); geoCache.delete(k0); }
+  if (geoCache.size > 160) { const k0 = geoCache.keys().next().value; geoCache.get(k0).dispose(); geoCache.delete(k0); }
   return g;
 }
 
@@ -134,7 +74,7 @@ function gunMesh(kind) {
 
 export class Person {
   constructor(look) {
-    this.look = look; this.group = new THREE.Group();
+    this.look = look; this.lod = 0; this.group = new THREE.Group();
     const bl = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), M.blob); bl.rotation.x = -Math.PI / 2; bl.position.y = 0.03; this.group.add(bl); this.blob = bl;
     this.bones = {}; this.mesh = null;
     this.phase = Math.random() * 6; this.state = 'idle'; this.speed = 0; this.aimBlend = 0; this.swimT = 0;
@@ -144,7 +84,7 @@ export class Person {
   }
   build() {
     if (this.mesh) { this.group.remove(this.mesh); }
-    const geom = buildGeom(this.look);
+    const geom = buildGeom(this.look); this.lod = 0;
     const bones = {};
     for (const b of BONES) { const o = new THREE.Bone(); o.position.set(...REST[b]); bones[b] = o; }
     for (const b of BONES) if (PARENT[b]) bones[PARENT[b]].add(bones[b]);
@@ -158,12 +98,14 @@ export class Person {
     if (this.umbrella) { bones.elR.add(this.umbrella); }
   }
   setLook(look) { this.look = look; this.build(); }
+  // l: 0 nah (Qualität bestimmt Detail), 2 mittel, 1 fern (ohne Schattenwurf)
+  setLOD(l) { if (l === this.lod || !this.mesh) return; this.lod = l; this.mesh.geometry = buildGeom(this.look, l === 1 ? 0 : l === 2 ? 1 : -1); this.mesh.castShadow = l !== 1; }
   setGun(kind) {
     if (this.gun) { this.gun.parent && this.gun.parent.remove(this.gun); }
     this.gunKind = kind; this.gun = null;
     if (!kind) return;
     GUNS[kind] = GUNS[kind] || gunMesh(kind);
-    this.gun = GUNS[kind].clone(); this.gun.position.set(0, -0.32, 0.04); this.gun.rotation.x = Math.PI / 2 * 1.0 - Math.PI / 2 + Math.PI / 2;
+    this.gun = GUNS[kind].clone(); this.gun.position.set(0, -0.36, 0.035); this.gun.rotation.x = Math.PI / 2 * 1.0 - Math.PI / 2 + Math.PI / 2;
     this.gun.rotation.set(Math.PI / 2, 0, 0);
     this.bones.elR.add(this.gun);
   }

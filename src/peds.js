@@ -185,6 +185,8 @@ export const Peds = {
       const p = this.list[i]; p.update(dt);
       const d2 = (p.pos.x - pl.pos.x) ** 2 + (p.pos.z - pl.pos.z) ** 2;
       p.group.visible = d2 < 260 * 260;
+      const lod = p.person.lod, far = d2 > (lod === 1 ? 26 * 26 : 34 * 34);
+      p.person.setLOD(far ? 1 : (!(G.quality && G.quality.lite) && d2 > (lod === 2 ? 11 * 11 : 15 * 15)) ? 2 : 0);
       if (p.dead && p.deadAnim > 18 && !p.noRemove) { this.dropCash(p); this.remove(p); continue; }
       if (!p.persistent && !p.noRemove && d2 > 190 * 190) { this.remove(p); continue; }
     }

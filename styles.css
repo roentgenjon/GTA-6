@@ -182,3 +182,5 @@ body.touch .tab { padding: 14px 14px; }
 
 #fps { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); font: 700 12px/1 ui-monospace, monospace; color: #9dffb0; text-shadow: 0 1px 3px #000; background: rgba(0,0,0,.35); padding: 3px 8px; border-radius: 6px; pointer-events: none; display: none; }
 body.showfps #fps { display: block; }
+
+#updbar { position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%); z-index: 90; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; background: rgba(14,8,28,.96); border: 1px solid var(--pink); padding: 10px 14px; border-radius: 12px; font-size: 14px; box-shadow: 0 8px 30px rgba(0,0,0,.5); max-width: 94vw; }

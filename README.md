@@ -2,7 +2,7 @@
 
 Ein im Browser spielbares, komplett prozedural erzeugtes Open-World-Spiel im Stil moderner GTA-Titel – ohne Build-Schritt, ohne externe Assets.
 
-**Spielen:** nach dem Deploy unter `https://<benutzer>.github.io/GTA-6/` (GitHub Pages über GitHub Actions).
+**Spielen:** `https://<benutzer>.github.io/GTA-6/` – die Seite aktualisiert sich nach jedem Deploy von selbst (siehe *Automatische Updates*).
 **Lokal:** beliebigen statischen Server im Projektordner starten (z. B. `python3 -m http.server`) und `index.html` öffnen. Module werden per `importmap` geladen, daher nicht per `file://`.
 
 ## Steuerung
@@ -30,6 +30,15 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 - **Lichtkegel:** volumetrische Scheinwerferstrahlen und Lichtflecken auf der Straße bei Nacht, Regen und Nebel.
 - Unter *Einstellungen* lassen sich Spiegelungen und Sonnenstrahlen einzeln abschalten; dort gibt es auch eine FPS-Anzeige und die automatische Leistungsanpassung (senkt bei niedriger Bildrate die Auflösung bzw. die Qualitätsstufe). Die Qualitätsstufe bestimmt Kaskaden, Schattenauflösung und Spiegelungs-Detail (Wechsel lädt die Seite neu).
 
+## Glatte 3D-Modelle (kein Blockwerk)
+
+- **Figuren:** Spieler, Passanten, Polizisten & Co. sind weich gelofte Körper mit 11-Knochen-Skelett (Skinning): Torso mit Schultern/Taille/Hüfte, runde Arme und Beine, Hände, Schuhe (Sneaker, Stiefel, Lederschuhe, Flip-Flops), Gesicht mit Augen, Brauen, Nase, Lippen, Ohren, sieben Frisuren, Hüte, Brillen, Kleidung (T-Shirt, Hoodie, Hemd, Top, Anzug mit Krawatte, Lederjacke, Hawaiihemd, Rock) – alles mit Vertexfarben. Drei Detailstufen (voll / mittel / fern) halten die Bildrate hoch.
+- **Fahrzeuge:** Karosserien aus geglätteten Profilkurven (Chaikin + Fasen), runde Reifen mit Flanken, Felgen und Bremsen; Bäume mit weichen Kronen.
+
+## Automatische Updates
+
+Jeder Push startet das Deployment (Branch `gh-pages`). Der Build stempelt eine Versionsnummer in alle Modul-Importe (`?v=…`), schreibt `version.json` und umgeht so jeden Browser-Cache. Die laufende Seite fragt `version.json` regelmäßig ab; bei einer neuen Version erscheint ein Hinweis (im Menü nach 3 s, im Spiel nach 15 s, nie mitten in Mission/Rennen/Zwischensequenz), das Spiel speichert automatisch, lädt neu und macht dort weiter.
+
 ## Inhalt
 
 - **Welt:** 24×24-Block-Stadt (Downtown-Wolkenkratzer, Neon District, Marina Shores mit Strand, Palm-Estates-Villen, Hafen, Industrie, Vororte), Flughafen mit Rollfeld, Bucht mit Stegen, Insel, Berge, Wälder, Farmen. Tag/Nacht-Zyklus, Sonnenuntergang, Regen, Gewitter, Nebel, Wolken, nasse Straßen.
@@ -46,13 +55,13 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 
 ## Deployment
 
-`.github/workflows/deploy.yml` prüft die Module per `node --check`, packt `index.html`, `styles.css`, `src/`, `vendor/` in `dist/` und veröffentlicht sie über `actions/deploy-pages`. In den Repo-Einstellungen muss unter *Pages → Source* **GitHub Actions** gewählt sein. Das Deployment läuft bei jedem Push auf `main` (oder manuell über *Actions → Run workflow*).
+`.github/workflows/deploy.yml` läuft bei jedem Push auf `main` und `claude/**` (oder manuell über *Actions → Run workflow*): `node --check` über alle Module, `index.html`, `styles.css`, `src/`, `vendor/` nach `dist/`, Versionsstempel + Cache-Busting, dann Veröffentlichung als Branch `gh-pages`. In den Repo-Einstellungen unter *Pages → Source* **Deploy from a branch → `gh-pages` / (root)** wählen.
 
 ## Projektstruktur
 
 ```
 index.html, styles.css
-src/  main.js (Schleife)  world.js/city.js/terrain.js (Welt)  sky.js (Wetter)
+src/  main.js (Schleife)  updater.js (Auto-Update)  bodies.js (Figuren-Generator)  world.js/city.js/terrain.js (Welt)  sky.js (Wetter)
       vehicles.js/models.js/catalog.js (Fahrzeuge)  persons.js/peds.js/traffic.js (Leben)
       police.js  combat.js  missions.js  activities.js  profile.js  ui.js  audio.js ...
 vendor/three  (Three.js + Post-Processing-Addons)

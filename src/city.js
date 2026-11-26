@@ -331,15 +331,15 @@ export function buildCity(scene) {
 
 // -------------------------------------------------------------------
 function treeGeom() {
-  const b = new Builder();
-  b.cyl(0, 1.4, 0, 0.22, 0.14, 2.8, 5, 0x6a4a30, false);
-  b.blob(0, 4.0, 0, 2.2, 0x3f8f3a, 0.9); b.blob(0.5, 5.2, 0.2, 1.5, 0x4aa044, 0.9);
+  const b = new Builder(), lite = !!(G.quality && G.quality.lite), R = lite ? 3 : 5, S = lite ? 7 : 10;
+  b.cyl(0, 1.4, 0, 0.22, 0.14, 2.8, lite ? 5 : 7, 0x6a4a30, false);
+  b.sphere(0, 4.0, 0, 2.3, 2.0, 2.3, 0x3f8f3a, R, S, 0.2, 1); b.sphere(0.6, 5.2, 0.2, 1.6, 1.4, 1.6, 0x4aa044, R, S, 0.2, 2); b.sphere(-0.7, 3.4, -0.4, 1.5, 1.3, 1.5, 0x358232, R, S, 0.2, 3);
   return b.build();
 }
 function palmGeom() {
   const b = new Builder(), segs = 4;
   let px = 0, py = 0;
-  for (let s = 0; s < segs; s++) { const t = s / segs, x = t * t * 1.6, y = s * 1.7 + 0.8; b.cyl(x, y, 0, 0.26 - t * 0.1, 0.22 - t * 0.1, 1.8, 5, s % 2 ? 0x8a6a48 : 0x7c5e3f, false); px = x; py = y + 0.9; }
+  for (let s = 0; s < segs; s++) { const t = s / segs, x = t * t * 1.6, y = s * 1.7 + 0.8; b.cyl(x, y, 0, 0.26 - t * 0.1, 0.22 - t * 0.1, 1.8, (G.quality && G.quality.lite) ? 5 : 8, s % 2 ? 0x8a6a48 : 0x7c5e3f, false); px = x; py = y + 0.9; }
   for (let f = 0; f < 7; f++) {
     const a = (f / 7) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a), nx = -dz, nz = dx;
     const L = 3.6, col = f % 2 ? 0x3a9a44 : 0x2a7d34;

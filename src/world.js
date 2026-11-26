@@ -229,7 +229,7 @@ function buildCountryside(scene) {
   const g = new THREE.Group();
   g.add(makeInstanced(pineGeom(), M.foliage, pines, { color: true, shadow: false, kind: 'far' }));
   // Eichen: gleiche Geometrie wie Stadtbäume (aus city exportiert nicht verfügbar) → kleine Variante
-  const ob = new Builder(); ob.cyl(0, 1.5, 0, 0.3, 0.2, 3, 5, 0x6a4a30, false); ob.blob(0, 4.6, 0, 2.8, 0x4c8f3a, 0.85); ob.blob(1.2, 5.3, 0.5, 1.9, 0x5ca044, 0.9);
+  const ob = new Builder(); ob.cyl(0, 1.5, 0, 0.3, 0.2, 3, 5, 0x6a4a30, false); ob.sphere(0, 4.6, 0, 2.9, 2.4, 2.9, 0x4c8f3a, 3, 7, 0.2, 5); ob.sphere(1.3, 5.3, 0.5, 1.9, 1.6, 1.9, 0x5ca044, 3, 7, 0.2, 6);
   g.add(makeInstanced(ob.build(), M.foliage, oaks, { color: true, shadow: false, kind: 'far' }));
   World.treeCount = pines.length + oaks.length;
   // Farmen

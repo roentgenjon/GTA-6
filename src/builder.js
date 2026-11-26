@@ -96,6 +96,16 @@ export class Builder {
       this.tri([cx, cy, z1], [p0[0], p0[1], z1], [p1[0], p1[1], z1], cc); this.tri([cx, cy, z0], [p1[0], p1[1], z0], [p0[0], p0[1], z0], cc);
     }
   }
+  // Glatte (indizierte) Kugel/Ellipsoid mit Verlauf – für Laub etc.
+  sphere(cx, cy, cz, rx, ry, rz, col, rings = 4, seg = 8, jit = 0, seed = 1) {
+    const cc = typeof col === 'number' ? rgb(col) : col, base = this.v;
+    for (let i = 0; i <= rings; i++) for (let j = 0; j < seg; j++) {
+      const th = (i / rings) * Math.PI, ph = (j / seg) * Math.PI * 2, nx = Math.sin(th) * Math.sin(ph), ny = Math.cos(th), nz = Math.sin(th) * Math.cos(ph);
+      const h = Math.sin((i * 12.9898 + j * 78.233 + seed * 37.719)) * 43758.5453, jt = jit ? 1 + ((h - Math.floor(h)) - 0.5) * jit : 1, k = 0.74 + 0.34 * (ny * 0.5 + 0.5) + 0.06 * (h - Math.floor(h));
+      this.vert(cx + nx * rx * jt, cy + ny * ry * jt, cz + nz * rz * jt, nx, ny, nz, 0.5, 0.5, [cc[0] * k, cc[1] * k, cc[2] * k]);
+    }
+    for (let i = 0; i < rings; i++) for (let j = 0; j < seg; j++) { const j2 = (j + 1) % seg, a = base + i * seg + j, b2 = base + i * seg + j2, c2 = base + (i + 1) * seg + j2, d = base + (i + 1) * seg + j; this.i.push(a, c2, b2, a, d, c2); }
+  }
   // Kegel/Kugel-ähnlicher Blob (Ikosaeder grob) für Laub
   blob(cx, cy, cz, r, col, ry = 1) {
     const cc = typeof col === 'number' ? rgb(col) : col;

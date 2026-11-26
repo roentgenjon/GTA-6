@@ -1,21 +1,21 @@
-name: Deploy to GitHub Pages
+name: Deploy (automatisch bei jedem Push)
 
+# Jeder Push veröffentlicht sofort eine neue Version der Seite (Branch gh-pages).
+# Pages-Quelle: Settings → Pages → "Deploy from a branch" → gh-pages / (root).
 on:
   push:
-    branches: [main, claude/charming-albattani-qgi4cb]
+    branches: [main, 'claude/**']
   workflow_dispatch:
 
 permissions:
-  contents: read
-  pages: write
-  id-token: write
+  contents: write
 
 concurrency:
-  group: pages
+  group: deploy-pages-site
   cancel-in-progress: true
 
 jobs:
-  build:
+  deploy:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -24,51 +24,22 @@ jobs:
         run: |
           for f in src/*.js; do node --check "$f" || exit 1; done
 
-      - name: Seite zusammenstellen
+      - name: Seite bauen (Versionsstempel + Cache-Busting)
         run: |
+          set -e
+          V="$(date -u +%Y%m%d%H%M%S)-${GITHUB_SHA::7}"
           mkdir -p dist
           cp index.html styles.css dist/
           cp -r src vendor dist/
           touch dist/.nojekyll
+          # an alle relativen Modul-Importe ?v=<Version> hängen → Browser laden garantiert die neuen Dateien
+          sed -i -E "s#(from '\./[A-Za-z0-9_]+\.js)'#\1?v=${V}'#g" dist/src/*.js
+          sed -i "s#src/main.js#src/main.js?v=${V}#; s#styles.css#styles.css?v=${V}#; s#__BUILD__#${V}#g" dist/index.html
+          printf '{"v":"%s","sha":"%s","time":"%s"}\n' "$V" "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > dist/version.json
+          echo "Version $V"
+          grep -c "?v=${V}" dist/src/main.js
 
-      - uses: actions/configure-pages@v5
-        continue-on-error: true
-        with:
-          enablement: true
-
-      - uses: actions/upload-pages-artifact@v3
-        with:
-          path: dist
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: site
-          path: dist
-          include-hidden-files: true
-
-  deploy:
-    needs: build
-    continue-on-error: true
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
-    steps:
-      - id: deployment
-        uses: actions/deploy-pages@v4
-
-  # Fallback ohne Umgebungsregeln: Seite in den Branch gh-pages schreiben
-  publish-branch:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@v4
-        with:
-          name: site
-          path: dist
-      - name: gh-pages veröffentlichen
+      - name: Auf gh-pages veröffentlichen
         run: |
           cd dist
           git init -q -b gh-pages

@@ -27,6 +27,7 @@ import { Race, Taxi, Delivery, Events, RACES } from './activities.js';
 import { newProfile, Save, Eco } from './profile.js';
 import { UI } from './ui.js';
 import { Touch } from './touch.js';
+import { Updater } from './updater.js';
 import { city, cullList } from './city.js';
 import { SITES } from './sites.js';
 import { BY_ID, CATALOG } from './catalog.js';
@@ -143,10 +144,13 @@ async function boot() {
   window.addEventListener('beforeunload', () => { if (started && G.state !== 'menu') { try { Save.serialize(); const r = Save.serialize(); localStorage.setItem('vicecity_save_v1', JSON.stringify(r)); } catch (e) { } } });
   document.addEventListener('keydown', (e) => { if (e.code === 'KeyR' && G.state === 'play' && G.player.vehicle) { const st = Audio.nextStation(1); UI.radioShow(st); } if (e.code === 'KeyT' && G.state === 'play') Taxi.toggle(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'play') emit('pause'); });
-  UI.setLoading(1, 'Bereit.');
+  UI.setLoading(1, 'Bereit.'); Updater.init();
   loaded = true;
   window.__gameReady = true;
+  let resume = false; try { resume = sessionStorage.getItem('vc_resume') === '1'; sessionStorage.removeItem('vc_resume'); } catch (e) { }
+  for (const ev of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(ev, () => { try { Audio.init(); Audio.resume(); } catch (e) { } }, { passive: true });
   if (new URLSearchParams(location.search).has('autostart')) { G.startNew(); }
+  else if (resume && Save.has()) { G.continueGame(); UI.toast('✅ Spiel wurde aktualisiert'); }
   else UI.showTitle();
   G.state = G.state === 'menu' || G.state === 'play' ? G.state : 'menu';
   requestAnimationFrame(loop);

@@ -3,6 +3,9 @@ import * as THREE from 'three';
 import { Builder, rgb } from './builder.js';
 import { M } from './materials.js';
 import { ExtrudeGeometry } from 'three';
+import { mergeVertices } from 'three/addons/utils/BufferGeometryUtils.js';
+const BODY_CACHE = new Map();
+const smoothstep01 = (t) => { t = t < 0 ? 0 : t > 1 ? 1 : t; return t * t * (3 - 2 * t); };
 import * as T from './textures.js';
 
 const wheelCache = new Map();
@@ -10,9 +13,10 @@ function wheelGeom(r, w, rimCol = 0xc9ccd1) {
   const key = r.toFixed(2) + w.toFixed(2) + rimCol;
   if (wheelCache.has(key)) return wheelCache.get(key);
   const b = new Builder();
-  b.cylX(0, 0, 0, r, w, 14, 0x141414);
-  b.cylX(0, 0, 0, r * 0.62, w + 0.02, 10, rimCol);
-  b.cylX(0, 0, 0, r * 0.2, w + 0.04, 6, 0x555a60);
+  b.cylX(0, 0, 0, r, w * 0.74, 22, 0x141414);
+  b.cylX(0, 0, 0, r * 0.945, w, 22, 0x161616);
+  b.cylX(0, 0, 0, r * 0.64, w + 0.02, 18, rimCol);
+  b.cylX(0, 0, 0, r * 0.2, w + 0.04, 10, 0x555a60);
   for (let k = 0; k < 5; k++) { const a = k / 5 * Math.PI * 2; b.box(0, Math.cos(a) * r * 0.32, Math.sin(a) * r * 0.32, w + 0.03, 0.05, r * 0.5, rimCol); }
   const g = b.build();
   wheelCache.set(key, g); return g;
@@ -41,12 +45,22 @@ function carBody(s, opts) {
   const nose = 0.06 + Math.max(0, yHH - yNN) * 0.4;
   const pts = [[X(0), cl], [X(0), yTT], [X(f1), yTT + 0.02], [X(f2), yR], [X(f3), yR], [X(f4), yHH + 0.03], [X(1) - nose, yHH], [X(1), yNN], [X(1), cl]];
   const bt = 0.07;
-  const shape = new THREE.Shape(); shape.moveTo(pts[0][0] * 1 + 0.0, pts[0][1]);
-  for (let k = 1; k < pts.length; k++) shape.lineTo(pts[k][0], pts[k][1]);
-  const geo = new ExtrudeGeometry(shape, { depth: W - bt * 2, bevelEnabled: true, bevelThickness: bt, bevelSize: 0.06, bevelOffset: -0.06, bevelSegments: 2, curveSegments: 1, steps: 1 });
-  geo.translate(0, 0, -(W - bt * 2) / 2);
-  geo.rotateY(-Math.PI / 2);
-  geo.computeVertexNormals();
+  // Karosserie: Profil per Chaikin-Unterteilung abrunden, Seitenkanten abfasen, Breite an Bug/Heck verjüngen, glatte Normalen. Pro Modell gecacht.
+  let base = BODY_CACHE.get(s.id);
+  if (!base) {
+    let sp = pts.map((p) => p.slice());
+    for (let it = 0; it < 2; it++) { const out = []; for (let i = 0; i < sp.length; i++) { const p = sp[i], q = sp[(i + 1) % sp.length]; out.push([p[0] * 0.75 + q[0] * 0.25, p[1] * 0.75 + q[1] * 0.25], [p[0] * 0.25 + q[0] * 0.75, p[1] * 0.25 + q[1] * 0.75]); } sp = out; }
+    const shape = new THREE.Shape(); shape.moveTo(sp[0][0], sp[0][1]);
+    for (let k = 1; k < sp.length; k++) shape.lineTo(sp[k][0], sp[k][1]);
+    let g0 = new ExtrudeGeometry(shape, { depth: W - bt * 2, bevelEnabled: true, bevelThickness: bt, bevelSize: 0.06, bevelOffset: -0.06, bevelSegments: 4, curveSegments: 1, steps: 1 });
+    g0.translate(0, 0, -(W - bt * 2) / 2);
+    const pos = g0.attributes.position;
+    for (let i = 0; i < pos.count; i++) { const x = pos.getX(i), ax = Math.abs(x) / L; const k = 1 - 0.17 * smoothstep01((ax - 0.3) / 0.2); pos.setZ(i, pos.getZ(i) * k); }
+    g0.deleteAttribute('normal'); g0.deleteAttribute('uv');
+    g0 = mergeVertices(g0, 1e-3); g0.rotateY(-Math.PI / 2); g0.computeVertexNormals();
+    BODY_CACHE.set(s.id, g0); base = g0;
+  }
+  const geo = base;
   // Glas
   const G = new Builder();
   const belt = Math.max(yTT, yHH) + 0.04;
@@ -84,7 +98,7 @@ function carBody(s, opts) {
   for (const m of [-1, 1]) { D.box(m * (W / 2 + 0.1), belt + 0.1, X(f4) - 0.1, 0.12, 0.1, 0.18, opts.c1); }
   if (s.cls === 'super' || s.cls === 'sport' && (s.seed % 3 === 0)) { D.box(0, yTT + 0.28, -L / 2 + 0.2, W * 0.88, 0.05, 0.3, 0x111111); for (const m of [-1, 1]) D.box(m * W * 0.36, yTT + 0.14, -L / 2 + 0.22, 0.05, 0.26, 0.2, 0x111111); }
   if (s.cls === 'muscle') D.box(0, yHH + 0.03, X(0.78), 0.5, 0.1, 0.8, 0x1a1a1a); // Hutze
-  if (s.cls === 'suv' || s.cls === 'pickup') { D.box(0, yR + 0.04, 0, W * 0.8, 0.05, L * 0.4, 0x15171a); D.box(0, cl + 0.22, L / 2 + 0.05, W * 0.9, 0.2, 0.1, 0x222426); }
+  if (s.cls === 'suv' || s.cls === 'pickup') { for (const sd of [-1, 1]) D.box(sd * W * 0.36, yR + 0.04, X((f2 + f3) / 2), 0.045, 0.045, L * 0.36, 0x15171a); D.box(0, cl + 0.22, L / 2 + 0.05, W * 0.9, 0.2, 0.1, 0x222426); }
   { const wbb = L * 0.6; for (const zz of [wbb / 2, -wbb / 2]) for (const mm of [-1, 1]) D.cylX(mm * (W / 2 + 0.012), s.wr, zz, s.wr + 0.08, 0.03, 12, 0x0a0a0a); }
   { const mid = X((f2 + f3) / 2), sd = 0x2b2b2f, by = belt - 0.36;
     for (const sx of [-0.4, 0.4]) { D.box(sx, by, mid, 0.46, 0.14, 0.5, sd); D.box(sx, belt - 0.06, mid - 0.24, 0.46, 0.55, 0.1, sd); }
