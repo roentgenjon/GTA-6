@@ -10,7 +10,8 @@ import { Missions } from './missions.js';
 import { Markers } from './markers.js';
 import { Combat } from './combat.js';
 import { Eco, Save } from './profile.js';
-import { CATALOG } from './catalog.js';
+import { CATALOG, CLS as CLSMAP } from './catalog.js';
+import * as TR from './terrain.js';
 import { city } from './city.js';
 import { WEATHER_NAMES } from './sky.js';
 
@@ -95,19 +96,35 @@ export const Admin = {
   },
   // ---------- Fahrzeuge ----------
   tab_veh(b) {
-    const pl = G.player, q = this.txt('Fahrzeug suchen …', '', 220), enter = { v: true }, list = this.el('div', { className: 'alist' });
+    const pl = G.player, st = this.vst || (this.vst = { cls: '', enter: true, color: null, n: 1 });
+    const q = this.txt('Fahrzeug suchen …', '', 220), list = this.el('div', { className: 'alist' });
+    const COLORS = [['Zufall', null], ['Rot', 0xc81e1e], ['Blau', 0x1e4fc8], ['Schwarz', 0x111111], ['Weiß', 0xf2f2f2], ['Gelb', 0xf0c419], ['Grün', 0x1e8a3c], ['Pink', 0xff3dbb], ['Orange', 0xff7a1a]];
+    const waterSpot = () => { const x0 = pl.pos.x, z0 = pl.pos.z; for (let r = 20; r <= 3000; r += 50) for (let k = 0; k < 24; k++) { const a = k / 24 * 6.283, x = x0 + Math.sin(a) * r, z = z0 + Math.cos(a) * r; if (TR.terrainHeight(x, z) < TR.WATER - 1.2) return { x, z }; } return null; };
+    const spawn = (c, enter) => {
+      const sp = CLS_KIND(c); let a = this.ahead(7 + (st.n > 1 ? 0 : 0));
+      if (sp === 'boat') { const w = waterSpot(); if (!w) { this.say('Kein Wasser in der Nähe – Boote gehen nur am Wasser'); return null; } a = w; }
+      const out = [];
+      for (let i = 0; i < st.n; i++) {
+        const off = st.n > 1 ? { x: Math.cos(pl.camYaw) * (i - (st.n - 1) / 2) * 3.6, z: -Math.sin(pl.camYaw) * (i - (st.n - 1) / 2) * 3.6 } : { x: 0, z: 0 };
+        const v = Veh.spawn(c.id, a.x + off.x, a.z + off.z, pl.camYaw, st.color != null ? { c1: st.color } : {}); if (!v) continue; v.keep = true; v.parked = false; if (sp === 'heli') v.pos.y += 3; out.push(v);
+      }
+      if (out[0] && enter) pl.enterVehicle(out[0]); if (sp === 'boat' && out[0] && !enter) this.say('Boot gespawnt am Wasser (' + Math.round(a.x) + ' / ' + Math.round(a.z) + ')');
+      this.say(out.length + '× ' + c.name + ' gespawnt'); return out[0];
+    };
+    const CLS_KIND = (c) => c.kind || (CLSMAP[c.cls] && CLSMAP[c.cls].kind) || 'car';
     const draw = () => {
       list.innerHTML = ''; const s = q.value.trim().toLowerCase(); let n = 0;
-      for (const c of CATALOG) { if (s && !(c.name.toLowerCase().includes(s) || String(c.cls).includes(s) || String(c.kind).includes(s) || c.id.includes(s))) continue; if (++n > 80) break;
-        list.append(this.button(`${c.name} · ${c.cls || c.kind}`, () => { const a = this.ahead(7), v = Veh.spawn(c.id, a.x, a.z, pl.camYaw); if (!v) return; v.keep = true; v.parked = false; if (enter.v) pl.enterVehicle(v); this.say('Gespawnt: ' + c.name); }, 'li')); }
+      for (const c of CATALOG) { if (st.cls && c.cls !== st.cls) continue; if (s && !(c.name.toLowerCase().includes(s) || String(c.cls).includes(s) || c.id.includes(s))) continue; if (++n > 120) break;
+        list.append(this.button(`${c.name} · ${(CLSMAP[c.cls] && CLSMAP[c.cls].label) || c.cls}${c.price ? ' · ' + fmt(c.price) : ''}`, () => spawn(c, st.enter && st.n === 1), 'li')); }
       if (!n) list.append('Nichts gefunden.');
     };
-    q.addEventListener('input', draw); draw();
+    q.addEventListener('input', draw);
     const cur = () => pl.vehicle;
+    const chips = this.el('div', { className: 'ar' }, [this.button('Alle', () => { st.cls = ''; this.render(); }, st.cls === '' ? 'on' : ''), ...Object.keys(CLSMAP).map((k) => this.button(CLSMAP[k].label, () => { st.cls = k; this.render(); }, st.cls === k ? 'on' : ''))]);
     b.append(this.group('Aktuelles Fahrzeug', [
       this.button('Reparieren', () => { const v = cur(); if (!v) return this.say('Du sitzt in keinem Fahrzeug'); v.hp = 1000; v.burning = 0; v.dead = false; v.wreck = false; v.exploded = false; v.damageFlash = 0; this.say('Repariert'); }),
       this.button('Umdrehen', () => { const v = cur(); if (!v) return; v.roll = 0; v.pitch = 0; v.pos.y += 1.5; v.vel.set(0, 0, 0); }),
-      this.button('Nitro', () => { const v = cur(); if (!v) return; const f = 1.8; v.vel.x *= f; v.vel.z *= f; }), this.button('Stoppen', () => { const v = cur(); if (v) { v.vel.set(0, 0, 0); v.speed = 0; } }),
+      this.button('Nitro', () => { const v = cur(); if (!v) return; v.vel.x *= 1.8; v.vel.z *= 1.8; }), this.button('Stoppen', () => { const v = cur(); if (v) { v.vel.set(0, 0, 0); v.speed = 0; } }),
       this.button('Löschen', () => { const v = cur(); if (!v) return; pl.exitVehicle(true); Veh.remove(v); }, 'warn'),
       this.toggleBtn('Unzerstörbar', () => !!this.C().vgod, (v) => (this.C().vgod = v)),
     ]));
@@ -115,8 +132,11 @@ export const Admin = {
       this.button('Alle NPC-Fahrzeuge löschen', () => { let n = 0; for (const v of [...G.entities.vehicles]) if (v !== pl.vehicle && !v.owned && !v.keep && !v.isDisplay) { Veh.remove(v); n++; } this.say(n + ' Fahrzeuge entfernt'); }, 'warn'),
       this.button('Wracks löschen', () => { let n = 0; for (const v of [...G.entities.vehicles]) if (v.wreck && v !== pl.vehicle) { Veh.remove(v); n++; } this.say(n + ' Wracks entfernt'); }),
     ]));
-    const chk = this.toggleBtn('Nach dem Spawn einsteigen', () => enter.v, (v) => (enter.v = v));
-    b.append(this.group('Spawnen (alle ' + CATALOG.length + ' Modelle)', [q, chk]), list);
+    b.append(this.group('Spawn-Optionen', [this.toggleBtn('Nach dem Spawn einsteigen (nur bei 1 Stück)', () => st.enter, (v) => (st.enter = v)),
+      ...[1, 3, 5, 10].map((n) => this.button('×' + n, () => { st.n = n; this.render(); }, st.n === n ? 'on' : ''))]));
+    b.append(this.group('Farbe', COLORS.map(([n, c]) => this.button(n, () => { st.color = c; this.render(); }, st.color === c ? 'on' : ''))));
+    b.append(this.group('Kategorie', [chips]));
+    b.append(this.group('Spawnen (' + CATALOG.length + ' Modelle)', [q]), list); draw();
   },
   // ---------- Welt ----------
   tab_world(b) {
