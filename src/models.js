@@ -285,7 +285,7 @@ function heliModel(s, opts) {
 export function buildModel(spec, c1, c2) {
   const root = new THREE.Group();
   const opts = { c1, c2 };
-  const out = { root, wheels: [], steerWheels: [], spec };
+  const out = { root, wheels: [], steerWheels: [], spec, farHide: [] };
   const kind = spec.kind;
   const specialPaint = spec.special === 'police' && kind === 'car';
   const mat = M.car(0xffffff);
@@ -328,7 +328,7 @@ export function buildModel(spec, c1, c2) {
   const body = new THREE.Mesh(bodyGeo, bodyMat); body.castShadow = true; body.receiveShadow = true;
   root.add(body); out.body = body; out.bodyGeo = bodyGeo; out.bodyMat = bodyMat; out.belt = parts.belt;
   if (parts.glass) { const gm = new THREE.Mesh(parts.glass, M.carGlass); M.carGlass.side = THREE.DoubleSide; root.add(gm); out.glass = gm; }
-  if (parts.detail) { const dm = new THREE.Mesh(parts.detail, M.flat); dm.castShadow = true; root.add(dm); }
+  if (parts.detail) { const dm = new THREE.Mesh(parts.detail, M.flat); dm.castShadow = false; root.add(dm); out.farHide.push(dm); }
   if (parts.extra) { root.add(parts.extra); }
   // Lichter
   const headMat = new THREE.MeshBasicMaterial({ color: 0x889099, toneMapped: false }), tailMat = new THREE.MeshBasicMaterial({ color: 0x4a1010, toneMapped: false });
@@ -348,8 +348,8 @@ export function buildModel(spec, c1, c2) {
     if (spec.cls === 'bus' && spec.flags.dd) { /* nichts */ }
     for (const [x, z, steer] of pos) {
       const holder = new THREE.Group(); holder.position.set(x, wr, z);
-      const w = new THREE.Mesh(wg, wheelMat); w.castShadow = true; if (x < 0) w.rotation.y = Math.PI;
-      holder.add(w); root.add(holder); out.wheels.push(w); if (steer) out.steerWheels.push(holder);
+      const w = new THREE.Mesh(wg, wheelMat); w.castShadow = false; if (x < 0) w.rotation.y = Math.PI;
+      holder.add(w); root.add(holder); out.wheels.push(w); out.farHide.push(holder); if (steer) out.steerWheels.push(holder);
       if (!steer) out.wheels.push; // noop
     }
     out.wb = fzz - rzz; out.fzz = fzz; out.rzz = rzz; out.wx = wx;
@@ -364,7 +364,7 @@ export function buildModel(spec, c1, c2) {
     }
     // Kennzeichen
     const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.5, 0.12), new THREE.MeshBasicMaterial({ map: T.plateTexture('VC' + String(spec.seed % 900 + 100) + 'X'), toneMapped: false }));
-    plate.position.set(0, spec.cl + 0.28, -spec.L / 2 - 0.09); plate.rotation.y = Math.PI; root.add(plate);
+    plate.position.set(0, spec.cl + 0.28, -spec.L / 2 - 0.09); plate.rotation.y = Math.PI; root.add(plate); out.farHide.push(plate);
   }
   if (kind === 'plane') {
     const pw = new THREE.Group();

@@ -21,6 +21,9 @@ import { Veh } from './vehicles.js';
 
 const $ = (s, r = document) => r.querySelector(s);
 const el = (h) => { const d = document.createElement('div'); d.innerHTML = h.trim(); return d.firstChild; };
+const setH = (el, h) => { if (el._h !== h) { el._h = h; el.innerHTML = h; } };
+const setT = (el, t) => { if (el._t !== t) { el._t = t; el.textContent = t; } };
+const setW = (el, w) => { if (el._w !== w) { el._w = w; el.style.width = w + '%'; } };
 const MAP = { x0: -2700, z0: -1700, w: 5500, h: 4100, s: 10 };
 
 export const UI = {
@@ -96,17 +99,18 @@ export const UI = {
   update(dt) {
     const pl = G.player; if (!pl || G.state === 'menu') return;
     const P_ = G.profile;
-    this.el.money.textContent = fmtMoney(P_.money);
+    setT(this.el.money, fmtMoney(P_.money));
     const h = Math.floor(G.hour), m = Math.floor((G.hour - h) * 60);
-    this.el.tw.textContent = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} · ${WEATHER_NAMES[G.weather.type] || ''}`;
+    setT(this.el.tw, `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')} · ${WEATHER_NAMES[G.weather.type] || ''}`);
     // Sterne
     const lvl = Police.level; let s = ''; for (let i = 1; i <= 5; i++) s += `<span class="${i <= lvl ? 'on' : 'off'}">★</span>`;
     if (this.el.stars.dataset.s !== s + Police.searching) { this.el.stars.innerHTML = s; this.el.stars.dataset.s = s + Police.searching; }
     this.el.stars.classList.toggle('search', Police.searching && lvl > 0);
-    this.el.hp.style.width = clamp(pl.hp, 0, 100) + '%'; this.el.armor.style.width = clamp(pl.armor, 0, 100) + '%'; this.el.stam.style.width = (pl.stamina * 100) + '%';
+    setW(this.el.hp, Math.round(clamp(pl.hp, 0, 100))); setW(this.el.armor, Math.round(clamp(pl.armor, 0, 100))); setW(this.el.stam, Math.round(pl.stamina * 50) * 2);
     // Waffe
     const w = pl.weapon, wd = pl.wdata;
-    this.el.weapon.innerHTML = pl.vehicle ? '' : `<b>${w.icon || ''}</b> ${w.name}${w.mag ? `<div class="ammo">${wd ? wd.mag : 0}<span style="font-size:14px;opacity:.7"> / ${wd ? wd.ammo : 0}</span>${pl.reloadT > 0 ? ' ⟳' : ''}</div>` : w.throw && wd ? `<div class="ammo">${wd.ammo}</div>` : ''}`;
+    const _wh = pl.vehicle ? '' : `<b>${w.icon || ''}</b> ${w.name}${w.mag ? `<div class="ammo">${wd ? wd.mag : 0}<span style="font-size:14px;opacity:.7"> / ${wd ? wd.ammo : 0}</span>${pl.reloadT > 0 ? ' ⟳' : ''}</div>` : w.throw && wd ? `<div class="ammo">${wd.ammo}</div>` : ''}`;
+    setH(this.el.weapon, _wh);
     this.el.cross.classList.toggle('hidden', !(pl.aiming && !pl.vehicle) || G.state !== 'play');
     // Tacho
     const v = pl.vehicle;
@@ -116,22 +120,24 @@ export const UI = {
       let extra = '';
       if (v.kind === 'plane') extra = `<div class="vhp">Höhe ${Math.round(v.pos.y - TR.groundHeight(v.pos.x, v.pos.z))} m · Schub ${Math.round(v.throttle * 100)}%</div>`; else if (v.kind === 'heli') extra = `<div class="vhp">Höhe ${Math.round(v.pos.y - TR.groundHeight(v.pos.x, v.pos.z))} m</div>`;
       const gear = v.gear < 0 ? 'R' : v.gear === 0 ? 'N' : v.gear;
-      this.el.speedo.innerHTML = `<div><span class="spd">${val}</span><span class="unit">${mph ? 'mph' : 'km/h'}</span></div>${v.kind === 'car' || v.kind === 'bike' ? `<div class="gear">Gang ${gear}</div>` : ''}<div class="rpm"><i style="width:${v.rpm * 100}%"></i></div><div class="vhp">${v.spec.name} · Zustand ${Math.round(clamp(v.hp / 10, 0, 100))}%</div>${extra}`;
+      const _sh = `<div><span class="spd">${val}</span><span class="unit">${mph ? 'mph' : 'km/h'}</span></div>${v.kind === 'car' || v.kind === 'bike' ? `<div class="gear">Gang ${gear}</div>` : ''}<div class="rpm"><i style="width:${Math.round(v.rpm * 25) * 4}%"></i></div><div class="vhp">${v.spec.name} · Zustand ${Math.round(clamp(v.hp / 10, 0, 100))}%</div>${extra}`;
+      setH(this.el.speedo, _sh);
     }
     // Straße / Bezirk
     const dn = DISTRICT_NAMES[districtAt(pl.pos.x, pl.pos.z)] || '', st = streetAt(pl.pos.x, pl.pos.z);
     const sh = `${st ? st : ''}<small>${dn}</small>`; if (this.el.street.dataset.s !== sh) { this.el.street.innerHTML = sh; this.el.street.dataset.s = sh; }
     // Mission Timer
     const mi = Missions.active;
-    if (mi && mi.timer) { const t = Math.max(0, mi.timer - G.clock); this.el.timer.classList.remove('hidden'); this.el.timer.textContent = `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`; } else this.el.timer.classList.add('hidden');
+    if (mi && mi.timer) { const t = Math.max(0, mi.timer - G.clock); this.el.timer.classList.remove('hidden'); setT(this.el.timer, `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`); } else this.el.timer.classList.add('hidden');
     // Rennen
     const r = G.race; if (r) {
       if (r.state === 'countdown') { this.el.count.classList.remove('hidden'); this.el.count.textContent = Math.ceil(r.t) > 0 ? Math.ceil(r.t) : 'GO'; } else { if (G.clock - r.started < 1.2) { this.el.count.classList.remove('hidden'); this.el.count.textContent = 'GO!'; } else this.el.count.classList.add('hidden'); }
-      this.el.race.innerHTML = `<div class="pos">${r.place || 1}<small style="font-size:22px">/${r.rivals.length + 1}</small></div><div>${r.def.name}</div><div>Checkpoint ${Math.min(r.cp + 1, r.route.seq.length)}/${r.route.seq.length}</div><div>${r.state === 'go' ? (G.clock - r.started).toFixed(1) + ' s' : ''}</div>`;
+      const _rh = `<div class="pos">${r.place || 1}<small style="font-size:22px">/${r.rivals.length + 1}</small></div><div>${r.def.name}</div><div>Checkpoint ${Math.min(r.cp + 1, r.route.seq.length)}/${r.route.seq.length}</div><div>${r.state === 'go' ? (G.clock - r.started).toFixed(1) + ' s' : ''}</div>`;
+      setH(this.el.race, _rh);
     } else this.el.count.classList.add('hidden');
     // Radio
     if (this._radioT > 0) { this._radioT -= dt; if (this._radioT <= 0) this.el.radio.classList.remove('show'); }
-    this.drawMinimap();
+    this._mmN = (this._mmN || 0) + 1; if (this._mmN % (document.body.classList.contains('touch') ? 3 : 2) === 0) this.drawMinimap();
   },
   radioShow(st) { this.el.radio.innerHTML = st.bpm > 0 ? `📻 <b>${st.name}</b><br>${st.genre}` : '📻 Radio aus'; this.el.radio.classList.add('show'); this._radioT = 3; },
   // ---------------- Karte vorrendern ----------------
@@ -240,15 +246,17 @@ export const UI = {
     if (!fromTitle) this.hud.style.visibility = 'hidden';
     if (G.state === 'play' || G.state === 'menu' || G.state === 'pause') { if (G.state === 'play') { G.state = 'pause'; Input.unlock(); } }
     this.fromTitle = fromTitle; if (fromTitle) { this.menuMode = 'title'; } else this.menuMode = 'game';
-    this.tab = tab; this.renderMenu(); if (G.state === 'pause') Audio.play('ui');
+    this._mOpen = performance.now(); this.tab = tab; this.renderMenu(); if (G.state === 'pause') Audio.play('ui');
   },
   closeMenu() { const m = $('#menu'); m.classList.add('hidden'); this.mapRaf = null; this.hud.style.visibility = ''; if (this.menuMode === 'title') { $('#title').classList.remove('hidden'); G.state = 'menu'; return; } if (G.state === 'pause') { G.state = 'play'; Input.lock(document.getElementById('game')); } },
+  menuOpen() { const m = $('#menu'); return !!m && !m.classList.contains('hidden'); },
   renderMenu() {
     const m = $('#menu'); m.classList.remove('hidden'); m.classList.toggle('transparent', this.tab === 'char' && this.menuMode === 'game');
     if (this.menuMode === 'title') $('#title').classList.add('hidden');
     const tabs = this.menuMode === 'title' ? this.TABS.filter((t) => ['settings', 'controls'].includes(t[0])) : this.TABS;
-    m.innerHTML = `<div class="win"><div class="tabs">${tabs.map(([k, n]) => `<button class="tab ${k === this.tab ? 'active' : ''}" data-tab="${k}">${n}</button>`).join('')}<span style="flex:1"></span><button class="tab" data-close="1">✕ Schließen</button></div><div class="pane" id="pane"></div></div>`;
-    m.onclick = (e) => { const t = e.target.closest('[data-tab]'); if (t) { this.tab = t.dataset.tab; Audio.play('ui'); this.renderMenu(); return; } if (e.target.closest('[data-close]')) this.closeMenu(); };
+    m.innerHTML = `<div class="win"><div class="menuhead"><div class="tabs">${tabs.map(([k, n]) => `<button class="tab ${k === this.tab ? 'active' : ''}" data-tab="${k}">${n}</button>`).join('')}</div><button class="closebtn" data-close="1" aria-label="Schließen">✕</button></div><div class="pane" id="pane"></div><button class="backbtn btn" data-close="1">⮌ Zurück ${this.menuMode === 'title' ? 'zum Hauptmenü' : 'zum Spiel'}</button></div>`;
+    m.onclick = (e) => { if (performance.now() - (this._mOpen || 0) < 450) return; if (e.target === m) { this.closeMenu(); return; } const t = e.target.closest('[data-tab]'); if (t) { this.tab = t.dataset.tab; Audio.play('ui'); this.renderMenu(); return; } if (e.target.closest('[data-close]')) this.closeMenu(); };
+    const act = m.querySelector('.tab.active'); if (act && act.scrollIntoView) { try { act.scrollIntoView({ inline: 'center', block: 'nearest' }); } catch (e) { } }
     const pane = $('#pane'); const pf = this['pane_' + this.tab]; if (pf) pf.call(this, pane);
   },
   // ---- Karte ----
@@ -410,7 +418,7 @@ export const UI = {
     this.closeModal(); const m = el(`<div class="modal"><div class="win"><div class="head"><h2>${title}</h2><span><span id="mmoney" class="price" style="margin-right:16px;font-size:18px">${fmtMoney(G.profile.money)}</span><button class="btn small alt" data-x="1">Schließen</button></span></div><div class="pane" id="mpane"></div></div></div>`);
     this.root.appendChild(m); this.modal = { el: m, onClose };
     if (G.state === 'play') { G.state = 'pause'; this.modalPaused = true; Input.unlock(); }
-    m.addEventListener('click', (e) => { if (e.target.closest('[data-x]')) this.closeModal(); });
+    this._mOpen = performance.now(); m.addEventListener('click', (e) => { if (performance.now() - this._mOpen < 450) return; if (e.target.closest('[data-x]')) this.closeModal(); });
     const p = $('#mpane', m); if (typeof body === 'function') body(p, m); else p.innerHTML = body; return p;
   },
   refreshMoney() { const m = $('#mmoney'); if (m) m.textContent = fmtMoney(G.profile.money); },

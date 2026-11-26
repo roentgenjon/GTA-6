@@ -160,3 +160,22 @@ body.touch .win { height: 94vh; } body.touch .tab { padding: 14px 16px; font-siz
 body.touch #title .menu .btn { padding: 18px 22px; font-size: 16px; }
 body.touch #menu.transparent .win { width: min(440px, 62vw); }
 #mapzoom { position: absolute; right: 10px; bottom: 10px; display: flex; flex-direction: column; gap: 8px; } #mapzoom button { width: 48px; height: 48px; font-size: 24px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel); color: #fff; }
+
+/* ---------- Menü-Fixes (Touch) ---------- */
+html, body { touch-action: manipulation; overscroll-behavior: none; }
+body { position: fixed; inset: 0; width: 100%; height: 100%; }
+canvas#game, #touch, #t-look, #t-stick, .tb { touch-action: none; }
+#menu, #title, .modal, .pane, .tabs { touch-action: pan-x pan-y; }
+.menuhead { display: flex; align-items: stretch; border-bottom: 1px solid var(--line); flex-shrink: 0; background: rgba(0,0,0,.18); }
+.menuhead .tabs { flex: 1 1 auto; min-width: 0; border-bottom: 0; overflow-x: auto; overflow-y: hidden; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-top: 6px; }
+.menuhead .tabs::-webkit-scrollbar { display: none; }
+.menuhead .closebtn { flex: 0 0 64px; background: linear-gradient(135deg, rgba(255,61,187,.85), rgba(120,70,255,.85)); border: 0; border-left: 1px solid var(--line); font-size: 26px; font-weight: 800; color: #fff; }
+.menuhead .closebtn:active { filter: brightness(1.3); }
+.backbtn { display: none; margin: 8px 14px 12px; flex-shrink: 0; }
+body.touch .backbtn { display: block; }
+.pane { -webkit-overflow-scrolling: touch; overscroll-behavior: contain; }
+body.touch * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; }
+body.touch #menu { background: rgba(5,2,14,.92); }
+body.touch .modal { background: rgba(5,2,14,.88); }
+body.touch .win, body.touch .toast, body.touch #prompt { background: rgba(14,8,28,.94); }
+body.touch .tab { padding: 14px 14px; }

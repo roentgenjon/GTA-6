@@ -70,7 +70,7 @@ export const Touch = {
     window.addEventListener('pointerdown', (e) => { if (G.ui && G.state === 'cutscene' && G.ui.cutsceneActive) G.ui.advance(); });
     // Gesten-Zoom der Seite verhindern
     document.addEventListener('gesturestart', (e) => e.preventDefault());
-    document.addEventListener('touchmove', (e) => { if (e.target.closest && !e.target.closest('.pane, .modal .win, select')) e.preventDefault(); }, { passive: false });
+    document.addEventListener('touchmove', (e) => { const t = e.target; if (t && t.closest && t.closest('#touch, #game, #hud') && !t.closest('#menu, .modal')) e.preventDefault(); }, { passive: false });
   },
   moveStick(e) {
     const R = 62; let dx = e.clientX - this.stick.sx, dy = e.clientY - this.stick.sy; const l = Math.hypot(dx, dy);

@@ -1,6 +1,7 @@
 // Gemeinsame Materialien
 import * as THREE from 'three';
 import * as T from './textures.js';
+import { G } from './game.js';
 
 export const M = {};
 
@@ -74,7 +75,7 @@ export function initMaterials() {
   M.lamp = new THREE.MeshBasicMaterial({ color: 0xfff0c0, toneMapped: false });
   M.glow = new THREE.PointsMaterial({ map: T.glowTexture(), size: 9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffd9a0, opacity: 0, sizeAttenuation: true, fog: false });
   M.tl = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
-  M.car = (color, rough = 0.28, metal = 0.7) => new THREE.MeshPhysicalMaterial({ color, roughness: rough, metalness: metal, clearcoat: 1, clearcoatRoughness: 0.06, vertexColors: true });
+  M.car = (color, rough = 0.28, metal = 0.7) => (G.quality && G.quality.lite ? new THREE.MeshStandardMaterial({ color, roughness: rough * 0.9, metalness: Math.min(0.85, metal + 0.1), vertexColors: true }) : new THREE.MeshPhysicalMaterial({ color, roughness: rough, metalness: metal, clearcoat: 1, clearcoatRoughness: 0.06, vertexColors: true }));
 }
 // Nacht-/Nässe-Update der Weltmaterialien
 export function updateMaterials(night, wet, rain) {

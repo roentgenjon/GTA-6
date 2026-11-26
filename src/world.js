@@ -19,25 +19,20 @@ export function waveHeight(x, z, t) {
   return h;
 }
 
-function buildTerrain(scene, quality) {
-  const SEG = quality === 'low' ? 320 : 512, size = TR.HALF * 2;
-  const g = new THREE.PlaneGeometry(size, size, SEG, SEG);
-  g.rotateX(-Math.PI / 2);
-  const pos = g.attributes.position, n = pos.count, col = new Float32Array(n * 3), uv = g.attributes.uv;
-  const c = new THREE.Color();
-  const hs = new Float32Array(n);
-  for (let k = 0; k < n; k++) hs[k] = TR.terrainHeight(pos.getX(k), pos.getZ(k));
-  const stride = SEG + 1;
-  for (let k = 0; k < n; k++) {
-    const x = pos.getX(k), z = pos.getZ(k); let h = hs[k];
-    const ix = k % stride, iz = (k / stride) | 0;
-    const hx = hs[iz * stride + Math.min(SEG, ix + 1)] - hs[iz * stride + Math.max(0, ix - 1)], hz = hs[Math.min(SEG, iz + 1) * stride + ix] - hs[Math.max(0, iz - 1) * stride + ix];
-    const slope = Math.hypot(hx, hz) / (2 * size / SEG);
+function buildTerrain(scene, SEG) {
+  SEG = Math.max(64, Math.round(SEG / 8) * 8);
+  const size = TR.HALF * 2, stride = SEG + 1, cell = size / SEG, n = stride * stride;
+  const hs = new Float32Array(n), ys = new Float32Array(n), col = new Float32Array(n * 3), c = new THREE.Color();
+  const gx = (i) => -TR.HALF + i * cell;
+  for (let j = 0; j < stride; j++) for (let i = 0; i < stride; i++) hs[j * stride + i] = TR.terrainHeight(gx(i), gx(j));
+  for (let j = 0; j < stride; j++) for (let i = 0; i < stride; i++) {
+    const k = j * stride + i, x = gx(i), z = gx(j), h = hs[k];
+    const hx = hs[j * stride + Math.min(SEG, i + 1)] - hs[j * stride + Math.max(0, i - 1)], hz = hs[Math.min(SEG, j + 1) * stride + i] - hs[Math.max(0, j - 1) * stride + i];
+    const slope = Math.hypot(hx, hz) / (2 * cell);
     const dCity = Math.max(TR.CITY.x0 - x, TR.CITY.z0 - z, 0), inCity = x < 1300 && z < 1300 && dCity === 0;
-    // Stadtbereich etwas absenken (Straßen liegen darüber)
     const flatDist = Math.min(dCity, Math.hypot(Math.max(TR.AIRPORT.x0 - x, 0, x - TR.AIRPORT.x1), Math.max(TR.AIRPORT.z0 - z, 0, z - TR.AIRPORT.z1)));
     const drop = 0.28 * (1 - smoothstep(0, 45, flatDist)) * (h > -0.5 ? 1 : 0);
-    pos.setY(k, h - drop);
+    ys[k] = h - drop;
     const nz = noise2(x / 30, z / 30), nz2 = noise2(x / 7, z / 7);
     if (h < -1.4) c.setRGB(0.52, 0.45, 0.3).multiplyScalar(0.8 + (h + 30) * 0.003);
     else if (h < 1.0 && (x > 900 || z > 900) && !(x < 1160 && z < 1160 && h > -0.1 && dCity === 0 && x < 1160)) c.setHex(0xe4d3a3).multiplyScalar(0.92 + nz2 * 0.12);
@@ -47,22 +42,47 @@ function buildTerrain(scene, quality) {
     else if (h > 55) c.setHex(0x4e7240).lerp(new THREE.Color(0x76704f), smoothstep(55, 130, h)).multiplyScalar(0.85 + nz * 0.3);
     else c.setHex(0x5c8d44).lerp(new THREE.Color(0x8d9a4f), nz).multiplyScalar(0.88 + nz2 * 0.2);
     col[k * 3] = c.r; col[k * 3 + 1] = c.g; col[k * 3 + 2] = c.b;
-    uv.setXY(k, x / 14, z / 14);
   }
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
-  g.computeVertexNormals();
-  const mesh = new THREE.Mesh(g, M.terrain); mesh.receiveShadow = true; mesh.matrixAutoUpdate = false;
-  scene.add(mesh);
-  World.terrainMesh = mesh;
+  const T = 8, m = SEG / T, group = new THREE.Group();
+  for (let tz = 0; tz < T; tz++) for (let tx = 0; tx < T; tx++) {
+    const V = (m + 1) * (m + 1), P_ = new Float32Array(V * 3), N_ = new Float32Array(V * 3), U_ = new Float32Array(V * 2), C_ = new Float32Array(V * 3), I_ = new Uint16Array(m * m * 6);
+    for (let jj = 0; jj <= m; jj++) for (let ii = 0; ii <= m; ii++) {
+      const gi = tx * m + ii, gj = tz * m + jj, k = gj * stride + gi, v = jj * (m + 1) + ii;
+      P_[v * 3] = gx(gi); P_[v * 3 + 1] = ys[k]; P_[v * 3 + 2] = gx(gj);
+      const dx = (ys[gj * stride + Math.min(SEG, gi + 1)] - ys[gj * stride + Math.max(0, gi - 1)]) / (2 * cell), dz = (ys[Math.min(SEG, gj + 1) * stride + gi] - ys[Math.max(0, gj - 1) * stride + gi]) / (2 * cell);
+      const l = Math.hypot(dx, 1, dz); N_[v * 3] = -dx / l; N_[v * 3 + 1] = 1 / l; N_[v * 3 + 2] = -dz / l;
+      U_[v * 2] = gx(gi) / 14; U_[v * 2 + 1] = gx(gj) / 14;
+      C_[v * 3] = col[k * 3]; C_[v * 3 + 1] = col[k * 3 + 1]; C_[v * 3 + 2] = col[k * 3 + 2];
+    }
+    let q = 0; for (let jj = 0; jj < m; jj++) for (let ii = 0; ii < m; ii++) { const a = jj * (m + 1) + ii, b = a + (m + 1), c2 = b + 1, d = a + 1; I_[q++] = a; I_[q++] = b; I_[q++] = c2; I_[q++] = a; I_[q++] = c2; I_[q++] = d; }
+    const g = new THREE.BufferGeometry(); g.setAttribute('position', new THREE.BufferAttribute(P_, 3)); g.setAttribute('normal', new THREE.BufferAttribute(N_, 3)); g.setAttribute('uv', new THREE.BufferAttribute(U_, 2)); g.setAttribute('color', new THREE.BufferAttribute(C_, 3)); g.setIndex(new THREE.BufferAttribute(I_, 1));
+    g.computeBoundingSphere(); g.computeBoundingBox();
+    const mesh = new THREE.Mesh(g, M.terrain); mesh.receiveShadow = true; mesh.matrixAutoUpdate = false; group.add(mesh);
+  }
+  scene.add(group); World.terrainMesh = group;
 }
 
 // ----- Ozean -----
-function buildOcean(scene, sky) {
-  const SEG = 360, size = TR.HALF * 2;
-  const g = new THREE.PlaneGeometry(size, size, SEG, SEG); g.rotateX(-Math.PI / 2);
-  const pos = g.attributes.position, d = new Float32Array(pos.count);
-  for (let k = 0; k < pos.count; k++) d[k] = clamp(TR.WATER - TR.terrainHeight(pos.getX(k), pos.getZ(k)), -2, 30);
-  g.setAttribute('aDepth', new THREE.BufferAttribute(d, 1));
+function buildOcean(scene, sky, SEG = 360) {
+  const size = TR.HALF * 2;
+  SEG = Math.max(64, Math.round(SEG / 8) * 8);
+  const stride = SEG + 1, cell = size / SEG, gx = (i) => -TR.HALF + i * cell;
+  const dep = new Float32Array(stride * stride);
+  for (let j = 0; j < stride; j++) for (let i = 0; i < stride; i++) dep[j * stride + i] = clamp(TR.WATER - TR.terrainHeight(gx(i), gx(j)), -2, 30);
+  const OT = 8, om = SEG / OT, oceanGroup = new THREE.Group(), tiles = [];
+  for (let tz = 0; tz < OT; tz++) for (let tx = 0; tx < OT; tx++) {
+    const V = (om + 1) * (om + 1), P_ = new Float32Array(V * 3), D_ = new Float32Array(V), idx = [];
+    for (let jj = 0; jj <= om; jj++) for (let ii = 0; ii <= om; ii++) { const gi = tx * om + ii, gj = tz * om + jj, v = jj * (om + 1) + ii; P_[v * 3] = gx(gi); P_[v * 3 + 1] = 0; P_[v * 3 + 2] = gx(gj); D_[v] = dep[gj * stride + gi]; }
+    for (let jj = 0; jj < om; jj++) for (let ii = 0; ii < om; ii++) {
+      const gi = tx * om + ii, gj = tz * om + jj, k = gj * stride + gi;
+      if (dep[k] < -0.6 && dep[k + 1] < -0.6 && dep[k + stride] < -0.6 && dep[k + stride + 1] < -0.6) continue; // reines Land: kein Wasser nötig
+      const a = jj * (om + 1) + ii, b2 = a + om + 1; idx.push(a, b2, b2 + 1, a, b2 + 1, a + 1);
+    }
+    if (!idx.length) continue;
+    const tg = new THREE.BufferGeometry(); tg.setAttribute('position', new THREE.BufferAttribute(P_, 3)); tg.setAttribute('aDepth', new THREE.BufferAttribute(D_, 1)); tg.setIndex(idx);
+    tg.boundingSphere = new THREE.Sphere(new THREE.Vector3(gx(tx * om + om / 2), 0, gx(tz * om + om / 2)), om * cell * 0.75); tg.boundingBox = new THREE.Box3(new THREE.Vector3(gx(tx * om), -3, gx(tz * om)), new THREE.Vector3(gx(tx * om + om), 3, gx(tz * om + om)));
+    tiles.push(tg);
+  }
   const uniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, { uTime: { value: 0 }, uHor: sky.uniforms.uHor, uZen: sky.uniforms.uZen, uSun: sky.uniforms.uSun, uSunCol: sky.uniforms.uSunCol, uNight: sky.uniforms.uNight, uRain: sky.uniforms.uRain, uCam: { value: new THREE.Vector3() }, tReflect: Reflect.uniforms.tReflect, uTexMat: { value: Reflect.texMat }, uReflect: Reflect.uniforms.uOceanReflect, uReflY: Reflect.uniforms.uReflY }]);
   Object.assign(uniforms, { uHor: sky.uniforms.uHor, uZen: sky.uniforms.uZen, uSun: sky.uniforms.uSun, uSunCol: sky.uniforms.uSunCol, uNight: sky.uniforms.uNight, uRain: sky.uniforms.uRain, tReflect: Reflect.uniforms.tReflect, uTexMat: Reflect.uniforms.uTexMat, uReflect: Reflect.uniforms.uOceanReflect, uReflY: Reflect.uniforms.uReflY }); // geteilte Uniform-Objekte (merge klont sonst)
   const mat = new THREE.ShaderMaterial({
@@ -118,7 +138,7 @@ function buildOcean(scene, sky) {
         #include <fog_fragment>
       }`,
   });
-  const mesh = new THREE.Mesh(g, mat); mesh.frustumCulled = false; mesh.renderOrder = 1;
+  const mesh = oceanGroup; for (const tg of tiles) { const tm = new THREE.Mesh(tg, mat); tm.renderOrder = 1; tm.frustumCulled = true; oceanGroup.add(tm); } mesh.renderOrder = 1;
   scene.add(mesh); World.water = mesh; World.waterUniforms = uniforms; Reflect.ocean = mesh;
 }
 
@@ -207,10 +227,10 @@ function buildCountryside(scene) {
   }
   for (const p of pines.concat(oaks)) if (Math.hypot(p[0], p[1]) < 2400) TR.addCircle(p[0], p[1], 0.5, 8);
   const g = new THREE.Group();
-  g.add(makeInstanced(pineGeom(), M.foliage, pines, { color: true, shadow: false }));
+  g.add(makeInstanced(pineGeom(), M.foliage, pines, { color: true, shadow: false, kind: 'far' }));
   // Eichen: gleiche Geometrie wie Stadtbäume (aus city exportiert nicht verfügbar) → kleine Variante
   const ob = new Builder(); ob.cyl(0, 1.5, 0, 0.3, 0.2, 3, 5, 0x6a4a30, false); ob.blob(0, 4.6, 0, 2.8, 0x4c8f3a, 0.85); ob.blob(1.2, 5.3, 0.5, 1.9, 0x5ca044, 0.9);
-  g.add(makeInstanced(ob.build(), M.foliage, oaks, { color: true, shadow: false }));
+  g.add(makeInstanced(ob.build(), M.foliage, oaks, { color: true, shadow: false, kind: 'far' }));
   World.treeCount = pines.length + oaks.length;
   // Farmen
   const B = new Builder();
@@ -281,10 +301,10 @@ function buildHighway(scene) {
 function R_half() { return 7; }
 
 // ===== Aufbau =====
-export function buildWorld(scene, sky, quality) {
+export function buildWorld(scene, sky, q) {
   initMaterials();
-  buildTerrain(scene, quality);
-  buildOcean(scene, sky);
+  buildTerrain(scene, (q && q.seg) || 448);
+  buildOcean(scene, sky, (q && q.oceanSeg) || 320);
   buildCity(scene);
   buildAirport(scene);
   buildHarbor(scene);

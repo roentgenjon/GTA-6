@@ -27,21 +27,21 @@ import { Race, Taxi, Delivery, Events, RACES } from './activities.js';
 import { newProfile, Save, Eco } from './profile.js';
 import { UI } from './ui.js';
 import { Touch } from './touch.js';
-import { city } from './city.js';
+import { city, cullList } from './city.js';
 import { SITES } from './sites.js';
 import { BY_ID, CATALOG } from './catalog.js';
 import { clamp, rr, fmtMoney, lerp } from './util.js';
 import { WEAPON_ORDER, WEAPONS } from './weapons.js';
 
 const QUALITY = {
-  low: { pr: 1, shadow: 1024, bloom: false, traffic: 14, peds: 26, parked: 10, terrain: 'low', csm: null, refl: null, rays: 0 },
-  medium: { pr: 1.25, shadow: 1024, bloom: false, traffic: 22, peds: 40, parked: 18, terrain: 'high', csm: { n: 2, size: 1024, far: 320 }, refl: { scale: 0.4, roads: false, every: 2 }, rays: 14 },
-  high: { pr: 1.5, shadow: 2048, bloom: true, traffic: 30, peds: 55, parked: 26, terrain: 'high', csm: { n: 3, size: 2048, far: 650 }, refl: { scale: 0.5, roads: true, every: 1 }, rays: 26 },
-  ultra: { pr: 2, shadow: 4096, bloom: true, traffic: 40, peds: 70, parked: 34, terrain: 'high', csm: { n: 4, size: 2048, far: 1100 }, refl: { scale: 0.75, roads: true, every: 1 }, rays: 40 },
+  low: { pr: 1, shadow: 1024, bloom: false, traffic: 12, peds: 22, parked: 8, seg: 192, oceanSeg: 140, csm: null, refl: null, rays: 0, lite: true, treeShadows: false, cull: { tree: 260, prop: 300, far: 700 } },
+  medium: { pr: 1.1, shadow: 1024, bloom: false, traffic: 18, peds: 32, parked: 14, seg: 288, oceanSeg: 200, csm: { n: 2, size: 1024, far: 260 }, refl: { scale: 0.3, roads: false, every: 3 }, rays: 12, lite: true, treeShadows: false, cull: { tree: 420, prop: 450, far: 1100 } },
+  high: { pr: 1.5, shadow: 2048, bloom: true, traffic: 30, peds: 55, parked: 26, seg: 448, oceanSeg: 300, csm: { n: 3, size: 2048, far: 650 }, refl: { scale: 0.5, roads: true, every: 1 }, rays: 26, lite: false, treeShadows: true, cull: { tree: 700, prop: 700, far: 1700 } },
+  ultra: { pr: 2, shadow: 4096, bloom: true, traffic: 40, peds: 70, parked: 34, seg: 512, oceanSeg: 360, csm: { n: 4, size: 2048, far: 1100 }, refl: { scale: 0.75, roads: true, every: 1 }, rays: 40, lite: false, treeShadows: true, cull: { tree: 1100, prop: 1000, far: 2800 } },
 };
 const TIPS = ['Tipp: Mit der Handbremse (Leertaste) lassen sich Autos gezielt driften.', 'Tipp: Nach einem Verbrechen hilft es, außer Sichtweite zu fahren und das Auto zu wechseln.', 'Tipp: Gelbe Rampen bringen Stunt-Prämien.', 'Tipp: Kaufe Immobilien, um Fahrzeuge zu speichern.', 'Tipp: Regen macht Straßen rutschig – fahr vorsichtig!', 'Tipp: Mit F steigst du auch in Boote, Flugzeuge und Hubschrauber.', 'Tipp: Setze einen Wegpunkt auf der Karte (M) für eine GPS-Route.'];
 
-let sunPass, csm, lastFov = 0, sunOcc = 1, gtao, renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
+let lastFovT = 0, renderFrames = 0, sunPass, csm, lastFov = 0, sunOcc = 1, gtao, renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
 let loaded = false, started = false;
 
 const SunShader = {
@@ -80,13 +80,15 @@ const SunShader = {
   }`,
 };
 const CineShader = {
-  uniforms: { tDiffuse: { value: null }, uBlur: { value: 0 }, uVig: { value: 0.4 }, uTime: { value: 0 }, uAspect: { value: 1 }, uWet: { value: 0 } },
+  uniforms: { tDiffuse: { value: null }, uBlur: { value: 0 }, uVig: { value: 0.4 }, uTime: { value: 0 }, uAspect: { value: 1 }, uWet: { value: 0 }, uCA: { value: 1 } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uBlur,uVig,uTime,uAspect,uWet; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uBlur,uVig,uTime,uAspect,uWet,uCA; varying vec2 vUv;
   float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
   void main(){ vec2 d = vUv-0.5; float r = length(d*vec2(uAspect,1.0));
-    vec3 col = vec3(0.0); const int N=8; for(int i=0;i<N;i++){ float t=float(i)/float(N); col += texture2D(tDiffuse, vUv - d*uBlur*t*0.14).rgb; } col/=float(N);
-    float ca = 0.0012 + uBlur*0.0015; col.r = mix(col.r, texture2D(tDiffuse, vUv - d*ca*2.0).r, 0.6); col.b = mix(col.b, texture2D(tDiffuse, vUv + d*ca*2.0).b, 0.6);
+    vec3 col;
+    if (uBlur > 0.004) { col = vec3(0.0); const int N=8; for(int i=0;i<N;i++){ float t=float(i)/float(N); col += texture2D(tDiffuse, vUv - d*uBlur*t*0.14).rgb; } col/=float(N); }
+    else col = texture2D(tDiffuse, vUv).rgb;
+    if (uCA > 0.5) { float ca = 0.0012 + uBlur*0.0015; col.r = mix(col.r, texture2D(tDiffuse, vUv - d*ca*2.0).r, 0.6); col.b = mix(col.b, texture2D(tDiffuse, vUv + d*ca*2.0).b, 0.6); }
     float l = dot(col, vec3(0.299,0.587,0.114)); col = mix(vec3(l), col, 1.08);
     col = mix(col, col*vec3(1.04,1.0,0.95), 0.4);
     col *= 1.0 - uVig*smoothstep(0.35,1.0,r*1.15);
@@ -104,7 +106,7 @@ async function boot() {
   UI.setLoading(0.05, 'Renderer wird gestartet …');
   const canvas = document.getElementById('game');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, G.quality.pr)); renderer.setSize(innerWidth, innerHeight);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, G.quality.pr)); renderer.setSize(innerWidth, innerHeight); renderer.info.autoReset = false; window.__R = renderer;
   renderer.shadowMap.enabled = G.settings.shadows; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputColorSpace = THREE.SRGBColorSpace;
   scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(G.settings.fov, innerWidth / innerHeight, 0.4, 7000);
@@ -113,7 +115,7 @@ async function boot() {
   await step(0.1, 'Himmel & Beleuchtung …');
   sky = new Sky(scene, renderer); G.sky = sky; sky.setShadowRes(G.quality.shadow);
   await step(0.2, 'Stadt wird generiert … ' + TIPS[Math.floor(Math.random() * TIPS.length)]);
-  buildWorld(scene, sky, G.quality.terrain);
+  buildWorld(scene, sky, G.quality);
   await step(0.55, 'Effekte, Marker & Missionen …');
   FX.init(scene); Markers.init(scene); Peds.init(); rain = new Rain(scene);
   defineMissions();
@@ -126,6 +128,7 @@ async function boot() {
   UI.buildMap();
   await step(0.9, 'Nachbearbeitung …');
   setupComposer();
+  try { camera.position.set(120, 60, -20); camera.updateMatrixWorld(); await Promise.race([renderer.compileAsync(scene, camera), new Promise((r) => setTimeout(r, 12000))]); } catch (e) { }
   Input.init(canvas);
   Touch.init(UI);
   // Spieler Platzhalter (für Titelhintergrund)
@@ -168,7 +171,7 @@ function setupLighting() {
 }
 const _sv = new THREE.Vector3(), _sf = new THREE.Vector3();
 function updateSunPass(dt) {
-  if (!sunPass || !sunPass.enabled) return;
+  if (!sunPass || !G.quality.rays || G.settings.godrays === false) { if (sunPass) sunPass.enabled = false; return; }
   const moon = G.night > 0.55, d = moon ? sky.moonDir : sky.sunDir, u = sunPass.uniforms, w = G.weather;
   _sv.copy(camera.position).addScaledVector(d, 1000).project(camera);
   camera.getWorldDirection(_sf);
@@ -178,6 +181,7 @@ function updateSunPass(dt) {
   sunOcc = lerp(sunOcc, hit < 1400 ? 0 : 1, Math.min(1, dt * 5));
   const wea = clamp(1 - w.cloud * 0.6 - w.rain * 0.3 - w.fog * 0.4, 0.04, 1);
   const vis = (G.state === 'play' || G.state === 'cutscene' || G.state === 'menu') ? facing * dayF * sunOcc * wea : 0;
+  sunPass.enabled = vis > 0.012 && !!G.settings.godrays !== false && !!G.quality.rays;
   u.uVis.value = vis; u.uSun.value.set(_sv.x * 0.5 + 0.5, _sv.y * 0.5 + 0.5); u.uAspect.value = innerWidth / innerHeight;
   u.uColor.value.copy(moon ? new THREE.Color(0.6, 0.7, 1) : sky.uniforms.uSunCol.value);
   const low = 1 - THREE.MathUtils.smoothstep(d.y, 0.0, 0.35); u.uRays.value = 0.5 + low * 0.6; u.uFlare.value = 0.45 + low * 0.2;
@@ -193,7 +197,40 @@ function setupComposer() {
   bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.38, 0.65, 0.86); composer.addPass(bloom);
   sunPass = new ShaderPass(SunShader); sunPass.material.defines.SAMPLES = Math.max(6, G.quality.rays || 8); sunPass.enabled = !!G.quality.rays && G.settings.godrays !== false; composer.addPass(sunPass);
   outPass = new OutputPass(); composer.addPass(outPass);
-  cinePass = new ShaderPass(CineShader); composer.addPass(cinePass);
+  cinePass = new ShaderPass(CineShader); cinePass.uniforms.uCA.value = (G.quality.lite || document.body.classList.contains('touch')) ? 0 : 1; composer.addPass(cinePass);
+}
+// Automatische Leistungsanpassung (dynamische Auflösung, im Notfall eine Qualitätsstufe tiefer)
+const Gov = {
+  scale: 1, acc: 0, n: 0, age: 0, cool: 0, slow: 0, fast: 0, enabled: true,
+  base() { return Math.min(window.devicePixelRatio || 1, G.quality.pr); },
+  apply() { const pr = this.base() * this.scale; renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight); if (composer) { composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); } Reflect.resize(); if (csm) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; } window.__gscale = this.scale; },
+  tick(dt) {
+    if (!this.enabled || G.settings.autoTune === false || G.state !== 'play') { this.acc = 0; this.n = 0; return; }
+    this.age += dt; if (this.age < 6 || dt > 0.4) { this.acc = 0; this.n = 0; return; }
+    this.acc += dt; this.n++; this.cool -= dt;
+    if (this.acc < 2.5) return;
+    const avg = this.acc / this.n; this.acc = 0; this.n = 0;
+    window.__avgdt = avg;
+    if (avg > 1 / 38 && this.cool <= 0 && this.scale > 0.56) { this.scale = Math.max(0.55, this.scale - 0.15); this.cool = 3; this.fast = 0; this.apply(); }
+    else if (avg > 1 / 27 && this.scale <= 0.56) { if (++this.slow >= 2) this.tierDown(); }
+    else if (avg < 1 / 56 && this.scale < 1 && this.cool <= 0) { if (++this.fast >= 3) { this.scale = Math.min(1, this.scale + 0.08); this.fast = 0; this.cool = 4; this.apply(); } }
+    else { this.slow = 0; }
+  },
+  tierDown() {
+    const order = ['ultra', 'high', 'medium', 'low'], i = order.indexOf(G.settings.quality); this.slow = 0;
+    let last = 0; try { last = +localStorage.getItem('vicecity_auto_v1') || 0; } catch (e) { }
+    if (i < 0 || i >= order.length - 1 || Date.now() - last < 90000) return;
+    G.settings.quality = order[i + 1]; Save.saveSettings(); try { localStorage.setItem('vicecity_auto_v1', String(Date.now())); } catch (e) { }
+    UI.toast('⚙ Leistung zu niedrig – Grafik wird auf „' + order[i + 1] + '" gesenkt, Seite lädt neu …');
+    try { if (started) Save.save(); } catch (e) { }
+    setTimeout(() => location.reload(), 1600);
+  },
+};
+let cullT = 0;
+function updateCull(dt) {
+  cullT -= dt; if (cullT > 0) return; cullT = 0.3;
+  const D = G.quality.cull || { tree: 600, prop: 600, far: 1500 }, cx = camera.position.x, cz = camera.position.z;
+  for (const c of cullList) c.mesh.visible = Math.hypot(cx - c.cx, cz - c.cz) - c.r < D[c.kind];
 }
 function onResize() {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
@@ -370,9 +407,12 @@ function updateLampLights(dt) {
 // ---------------- Hauptschleife ----------------
 function loop(now) {
   requestAnimationFrame(loop);
-  let dt = Math.min(0.05, (now - last) / 1000); last = now; if (dt <= 0) dt = 0.001;
+  const rdt = (now - last) / 1000; let dt = Math.min(0.05, rdt); last = now; if (dt <= 0) dt = 0.001;
   G.clock += dt; clockT += dt;
   const _t0 = performance.now();
+  const frozen = !window.__skipRender && ((G.state === 'pause' && UI.tab !== 'char') || (G.state === 'menu' && UI.menuOpen())) && (renderFrames > 3);
+  if (frozen) { if (G.state === 'pause') { Input.endFrame(); } Audio.update(dt); Audio.radioTick(dt); return; }
+  Gov.tick(rdt);
   const st = G.state, sim = st === 'play' || st === 'cutscene' || st === 'menu';
   const pl = G.player;
   Touch.update();
@@ -402,22 +442,24 @@ function loop(now) {
   camera.updateMatrixWorld();
   const follow = new THREE.Vector3(camera.position.x, 0, camera.position.z);
   const k = sky.update(dt, camera.position, follow);
-  if (csm) { if (Math.abs(camera.fov - lastFov) > 0.35) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; } csm.update(); }
+  if (csm) { if (Math.abs(camera.fov - lastFov) > 1.2 && clockT - lastFovT > 0.5) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; lastFovT = clockT; } csm.update(); }
   renderer.toneMappingExposure = sky.exposure;
   updateWorld(dt, camera.position);
   rain.update(dt, camera.position, G.weather.rain, 0.2);
-  updateLampLights(dt);
+  updateLampLights(dt); updateCull(dt);
   Audio.update(dt); Audio.radioTick(dt);
   UI.update(dt);
   // Nachbearbeitung
   const q = G.quality; const sp = pl.vehicle ? Math.abs(pl.vehicle.speed) : 0; const target = clamp((sp - 38) / 120, 0, 0.3) * (pl.vehicle && pl.vehicle.kind !== 'boat' ? 1 : 0.4); speedBlur = lerp(speedBlur, target, Math.min(1, dt * 3));
+  renderer.info.reset();
   if (window.__skipRender) { } else if (composer && (G.settings.bloom || true)) {
     Reflect.update(dt, camera); Reflect.render(scene, camera); updateSunPass(dt);
     bloom.enabled = !!G.settings.bloom && q.bloom !== false && G.settings.quality !== 'low'; bloom.strength = (G.night > 0.4 ? 0.62 : 0.28) + (G.settings.quality === 'ultra' ? 0.1 : 0);
     cinePass.uniforms.uBlur.value = speedBlur; cinePass.uniforms.uTime.value = clockT % 100; cinePass.uniforms.uVig.value = 0.42 + (pl.alive ? 0 : 0.3) + (pl.hp < 30 ? 0.25 : 0);
     composer.render(dt);
+    renderFrames++;
   } else renderer.render(scene, camera);
-  const _t2 = performance.now(); window.__prof = { sim: _t1 - _t0, render: _t2 - _t1 };
+  const _t2 = performance.now(); window.__prof = { sim: _t1 - _t0, render: _t2 - _t1, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
   // Autosave alle 2 Minuten (nur im Spiel)
   if (saveTimer > 150 && G.state === 'play') { saveTimer = 0; try { localStorage.setItem('vicecity_save_v1', JSON.stringify(Save.serialize())); } catch (e) { } }
   // Fähigkeiten steigern
@@ -425,5 +467,5 @@ function loop(now) {
   window.__frame = (window.__frame || 0) + 1;
 }
 // Debug-Hooks
-window.__G = G; window.__mods = { Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
+window.__G = G; window.__mods = { World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
 boot().catch((e) => { console.error(e); const t = document.querySelector('#loading .tip'); if (t) t.textContent = 'Fehler beim Start: ' + e.message; });

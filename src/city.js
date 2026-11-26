@@ -5,6 +5,7 @@ import { M } from './materials.js';
 import { P, R, K, blockExists, nodeExists, districtOf, addBox, addCircle, edgeExists, DIRS, coastE, coastS, groundHeight } from './terrain.js';
 import { SITES } from './sites.js';
 import { mulberry32 } from './util.js';
+import { G } from './game.js';
 import * as T from './textures.js';
 
 const BAY = 3.6, FH = 3.5, TOP = 0.06;
@@ -32,8 +33,8 @@ function facade(B, kind, cx, cz, w, d, h, col, r, base = TOP) {
   B.flat.box(cx, base + 0.5, cz, w + 0.35, 1.0, d + 0.35, 0x55534f, { noTop: true, noBottom: true });
   if (kind !== 'curtain') B.flat.box(cx, base + 4.3, cz, w + 0.5, 0.3, d + 0.5, 0xd8d3c6, { noTop: false, noBottom: true });
   B.flat.box(cx, base + h + 0.25, cz, w + 0.5, 0.5, d + 0.5, ROOF[(r() * ROOF.length) | 0], { noBottom: true });
-  const n = 1 + ((r() * 3) | 0);
-  for (let k = 0; k < n; k++) B.flat.box(cx + (r() - 0.5) * (w - 4), base + h + 1.2, cz + (r() - 0.5) * (d - 4), 1.5 + r() * 2, 1.4, 1.5 + r() * 2, 0x9a9a9a);
+  const n0 = 1 + ((r() * 3) | 0), lite = !!(G.quality && G.quality.lite);
+  for (let k = 0; k < n0; k++) { const q1 = r(), q2 = r(), q3 = r(), q4 = r(); if (!lite) B.flat.box(cx + (q1 - 0.5) * (w - 4), base + h + 1.2, cz + (q2 - 0.5) * (d - 4), 1.5 + q3 * 2, 1.4, 1.5 + q4 * 2, 0x9a9a9a); }
   return { w, d, h };
 }
 const colB = (r, arr) => arr[(r() * arr.length) | 0];
@@ -269,7 +270,7 @@ function buildSite(B, props, S) {
 // -------------------------------------------------------------------
 export function buildCity(scene) {
   chunks.clear();
-  const props = { trees: [], palms: [], lamps: [], tl: [], hyd: [], bin: [], bench: [], mail: [], shelter: [], sign: [] };
+  const props = { trees: [], palms: [], lamps: [], tl: [] };
   const siteMap = new Map(SITES.map((s) => [s.i + ',' + s.j, s]));
   const cityRand = mulberry32(777);
   for (let i = -K; i < K; i++) for (let j = -K; j < K; j++) {
@@ -282,7 +283,7 @@ export function buildCity(scene) {
     B.slab.box(cx, TOP - 0.18, cz, P - R, 0.36, P - R, slabCol, { noBottom: true, topUV: [0, u, u, u, u, 0, 0, 0] });
     const site = siteMap.get(i + ',' + j);
     if (site) buildSite(B, props, site); else buildStandard(B, props, i, j, r);
-    { const o = (r() - 0.5) * 50; props.hyd.push([cx + o, cz + hw - 0.8, 0]); if (r() < 0.8) props.bin.push([cx + o + 3 + r() * 6, cz + hw - 0.9, 0]); if (r() < 0.45) props.bench.push([cx - o * 0.6, cz - hw + 1.0, 0]); if (r() < 0.5) props.mail.push([cx + hw - 0.9, cz + (r() - 0.5) * 40, Math.PI / 2]); if (r() < 0.12) props.shelter.push([cx + (r() - 0.5) * 30, cz + hw - 1.6, 0]); if (r() < 0.5) props.sign.push([cx - hw + 1.0, cz - hw + 1.0, 0]); }
+    { const o = (r() - 0.5) * 50, Bf = B.flat, y0 = TOP; streetHydrant(Bf, cx + o, cz + hw - 0.8, y0); if (r() < 0.8) streetBin(Bf, cx + o + 3 + r() * 6, cz + hw - 0.9, y0); const lt = !!(G.quality && G.quality.lite); const p1 = r() < 0.45, p2 = r() < 0.5, o2 = (r() - 0.5) * 40, p3 = r() < 0.12, o3 = (r() - 0.5) * 30, p4 = r() < 0.5; if (!lt) { if (p1) streetBench(Bf, cx - o * 0.6, cz - hw + 1.0, y0); if (p2) streetMail(Bf, cx + hw - 0.9, cz + o2, y0); if (p3) streetShelter(Bf, cx + o3, cz + hw - 1.6, y0); if (p4) streetSign(Bf, cx - hw + 1.0, cz - hw + 1.0, y0); } }
     // Straßenlaternen + Straßenbäume
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) props.lamps.push([cx + sx * (hw - 1.2), cz + sz * (hw - 1.2), Math.atan2(sx, sz) + Math.PI]);
     for (const m of [-1, 1]) { props.lamps.push([cx + m * (hw - 1.2), cz, m > 0 ? Math.PI / 2 : -Math.PI / 2]); props.lamps.push([cx, cz + m * (hw - 1.2), m > 0 ? 0 : Math.PI]); }
@@ -332,28 +333,26 @@ export function buildCity(scene) {
 function treeGeom() {
   const b = new Builder();
   b.cyl(0, 1.4, 0, 0.22, 0.14, 2.8, 5, 0x6a4a30, false);
-  b.blob(0, 4.0, 0, 2.2, 0x3f8f3a, 0.9); b.blob(0.5, 5.3, 0.2, 1.6, 0x4aa044, 0.9); b.blob(-0.6, 3.3, -0.4, 1.4, 0x358232, 0.9);
+  b.blob(0, 4.0, 0, 2.2, 0x3f8f3a, 0.9); b.blob(0.5, 5.2, 0.2, 1.5, 0x4aa044, 0.9);
   return b.build();
 }
 function palmGeom() {
-  const b = new Builder(), segs = 7;
+  const b = new Builder(), segs = 4;
   let px = 0, py = 0;
-  for (let s = 0; s < segs; s++) { const t = s / segs, x = t * t * 1.6, y = s * 1.15 + 0.6; b.cyl(x, y, 0, 0.26 - t * 0.1, 0.22 - t * 0.1, 1.25, 6, s % 2 ? 0x8a6a48 : 0x7c5e3f, false); px = x; py = y + 0.6; }
-  for (let f = 0; f < 9; f++) {
-    const a = (f / 9) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a), nx = -dz, nz = dx;
-    const L = 3.6, col = 0x2f8a3a;
-    const p0 = [px, py, 0], p1 = [px + dx * L * 0.5, py + 0.9, dz * L * 0.5], p2 = [px + dx * L, py - 0.3, dz * L];
-    const wd = 0.5;
-    b.quad([p0[0] + nx * 0.1, p0[1], p0[2] + nz * 0.1], [p1[0] + nx * wd, p1[1], p1[2] + nz * wd], [p1[0] - nx * wd, p1[1], p1[2] - nz * wd], [p0[0] - nx * 0.1, p0[1], p0[2] - nz * 0.1], col);
-    b.tri([p1[0] + nx * wd, p1[1], p1[2] + nz * wd], [p2[0], p2[1], p2[2]], [p1[0] - nx * wd, p1[1], p1[2] - nz * wd], f % 2 ? 0x3a9a44 : 0x2a7d34);
+  for (let s = 0; s < segs; s++) { const t = s / segs, x = t * t * 1.6, y = s * 1.7 + 0.8; b.cyl(x, y, 0, 0.26 - t * 0.1, 0.22 - t * 0.1, 1.8, 5, s % 2 ? 0x8a6a48 : 0x7c5e3f, false); px = x; py = y + 0.9; }
+  for (let f = 0; f < 7; f++) {
+    const a = (f / 7) * Math.PI * 2, dx = Math.cos(a), dz = Math.sin(a), nx = -dz, nz = dx;
+    const L = 3.6, col = f % 2 ? 0x3a9a44 : 0x2a7d34;
+    const p1 = [px + dx * L * 0.5, py + 0.9, dz * L * 0.5], p2 = [px + dx * L, py - 0.3, dz * L], wd = 0.55;
+    b.quad([px + nx * 0.1, py, nz * 0.1], [p1[0] + nx * wd, p1[1], p1[2] + nz * wd], [p1[0] - nx * wd, p1[1], p1[2] - nz * wd], [px - nx * 0.1, py, -nz * 0.1], col);
+    b.tri([p1[0] + nx * wd, p1[1], p1[2] + nz * wd], p2, [p1[0] - nx * wd, p1[1], p1[2] - nz * wd], col);
   }
-  b.blob(px, py - 0.1, 0, 0.35, 0x5a3b22, 1);
   return b.build();
 }
 export function pineGeom() {
   const b = new Builder();
   b.cyl(0, 1.2, 0, 0.3, 0.2, 2.4, 5, 0x5a3f2a, false);
-  for (let k = 0; k < 4; k++) b.cyl(0, 3 + k * 2.1, 0, 2.6 - k * 0.55, 0.05, 3.2, 7, k % 2 ? 0x25613a : 0x2d7044, true);
+  for (let k = 0; k < 3; k++) b.cyl(0, 3.2 + k * 2.6, 0, 2.7 - k * 0.7, 0.05, 3.6, 5, k % 2 ? 0x25613a : 0x2d7044, true);
   return b.build();
 }
 function lampGeom() {
@@ -369,54 +368,65 @@ function tlGeom() {
   return b.build();
 }
 
+function streetHydrant(B, x, z, y) { B.cyl(x, y + 0.35, z, 0.13, 0.11, 0.7, 8, 0xc8261f, false); B.cyl(x, y + 0.75, z, 0.14, 0.1, 0.1, 8, 0xc8261f); B.box(x + 0.15, y + 0.5, z, 0.12, 0.1, 0.1, 0xb0b0b0); B.box(x - 0.15, y + 0.5, z, 0.12, 0.1, 0.1, 0xb0b0b0); }
+function streetBin(B, x, z, y) { B.cyl(x, y + 0.45, z, 0.3, 0.27, 0.9, 8, 0x2f5a3c, false); B.cyl(x, y + 0.93, z, 0.32, 0.3, 0.07, 8, 0x1d3a27); }
+function streetBench(B, x, z, y) { B.box(x, y + 0.45, z, 1.6, 0.07, 0.5, 0x7a5230); B.box(x, y + 0.8, z - 0.22, 1.6, 0.45, 0.06, 0x7a5230); B.box(x - 0.7, y + 0.22, z, 0.08, 0.44, 0.45, 0x333333); B.box(x + 0.7, y + 0.22, z, 0.08, 0.44, 0.45, 0x333333); }
+function streetMail(B, x, z, y) { B.box(x, y + 0.55, z, 0.5, 1.1, 0.5, 0x2a4fb0); B.box(x, y + 1.12, z, 0.5, 0.08, 0.55, 0x1b3580); }
+function streetShelter(B, x, z, y) { B.box(x, y + 2.6, z, 3.6, 0.12, 1.6, 0x8a8f94); B.box(x, y + 1.3, z - 0.78, 3.4, 2.4, 0.05, 0x9fd0e0); B.box(x - 1.7, y + 1.3, z, 0.05, 2.4, 1.5, 0x9fd0e0); B.box(x + 1.7, y + 1.3, z, 0.05, 2.4, 1.5, 0x9fd0e0); B.box(x, y + 0.45, z - 0.4, 2.4, 0.08, 0.4, 0x555a60); addCircle(x, z, 0.5, 3); }
+function streetSign(B, x, z, y) { B.cyl(x, y + 1.3, z, 0.04, 0.04, 2.6, 6, 0x888d92, false); B.cyl(x, y + 2.55, z, 0.5, 0.5, 0.05, 8, 0xd02020); B.cyl(x, y + 2.57, z + 0.03, 0.4, 0.4, 0.04, 8, 0xffffff); }
+
+export const cullList = [];
+const CELL = 520; // Instanz-Zellen: Frustum-Culling pro Zelle
+export function chunkInst(geom, mat, items, opt = {}) {
+  const cells = new Map(), grp = new THREE.Group();
+  for (const it of items) { const k = Math.floor(it.x / CELL) * 1000 + Math.floor(it.z / CELL); let a = cells.get(k); if (!a) cells.set(k, (a = [])); a.push(it); }
+  for (const a of cells.values()) {
+    const im = new THREE.InstancedMesh(geom, mat, a.length);
+    a.forEach((it, n) => { im.setMatrixAt(n, it.m); if (it.c) im.setColorAt(n, it.c); });
+    im.instanceMatrix.needsUpdate = true; if (im.instanceColor) im.instanceColor.needsUpdate = true;
+    im.castShadow = !!opt.shadow; im.receiveShadow = true; im.computeBoundingSphere(); im.frustumCulled = true; grp.add(im);
+    cullList.push({ mesh: im, cx: im.boundingSphere.center.x, cz: im.boundingSphere.center.z, r: im.boundingSphere.radius, kind: opt.kind || 'prop' });
+  }
+  return grp;
+}
 export function makeInstanced(geom, mat, list, opt = {}) {
-  const im = new THREE.InstancedMesh(geom, mat, list.length);
-  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler(), c = new THREE.Color();
-  const r = mulberry32(list.length + 9);
+  const m = new THREE.Matrix4(), q = new THREE.Quaternion(), p = new THREE.Vector3(), s = new THREE.Vector3(), e = new THREE.Euler();
+  const r = mulberry32(list.length + 9), items = [];
   for (let n = 0; n < list.length; n++) {
     const it = list[n], sc = it[2] || 1;
     const y = opt.y != null ? opt.y : groundHeight(it[0], it[1]) + (opt.lift || 0);
     p.set(it[0], y, it[1]); e.set(0, opt.rot ? it[2] : r() * 6.28, 0); q.setFromEuler(e); s.setScalar(opt.rot ? 1 : sc);
-    m.compose(p, q, s); im.setMatrixAt(n, m);
-    if (opt.color) { const v = 0.75 + r() * 0.5; c.setRGB(v * (0.9 + r() * 0.2), v, v * (0.9 + r() * 0.15)); im.setColorAt(n, c); }
+    m.compose(p, q, s);
+    let c = null; if (opt.color) { const v = 0.75 + r() * 0.5; c = new THREE.Color(v * (0.9 + r() * 0.2), v, v * (0.9 + r() * 0.15)); }
+    items.push({ x: it[0], z: it[1], m: m.clone(), c });
   }
-  im.instanceMatrix.needsUpdate = true; im.castShadow = !!opt.shadow; im.receiveShadow = true; im.frustumCulled = false;
-  return im;
+  return chunkInst(geom, mat, items, opt);
 }
 
 function buildInstances(props) {
-  const g = city.group;
-  g.add(makeInstanced(treeGeom(), M.foliage, props.trees, { color: true, shadow: true, lift: 0.06 }));
-  g.add(makeInstanced(palmGeom(), M.foliage, props.palms, { color: true, shadow: true, lift: 0.06 }));
+  const g = city.group, ts = !!(G.quality && G.quality.treeShadows);
+  g.add(makeInstanced(treeGeom(), M.foliage, props.trees, { color: true, shadow: ts, lift: 0.06, kind: 'tree' }));
+  g.add(makeInstanced(palmGeom(), M.foliage, props.palms, { color: true, shadow: ts, lift: 0.06, kind: 'tree' }));
   const lampList = props.lamps.map(([x, z, rot]) => [x, z, rot]);
-  g.add(makeInstanced(lampGeom(), M.flat, lampList, { rot: true, lift: 0.06, shadow: true }));
+  g.add(makeInstanced(lampGeom(), M.flat, lampList, { rot: true, lift: 0.06, shadow: false }));
   // Lampenköpfe & Glow
-  const heads = new THREE.InstancedMesh(new THREE.BoxGeometry(0.55, 0.14, 0.35), M.lamp, lampList.length);
-  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pp = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), gp = [];
-  lampList.forEach(([x, z, rot], n) => {
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), rot);
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), pp = new THREE.Vector3(), sc = new THREE.Vector3(1, 1, 1), gp = [], hitems = [], yAxis = new THREE.Vector3(0, 1, 0);
+  lampList.forEach(([x, z, rot]) => {
+    q.setFromAxisAngle(yAxis, rot);
     const ox = Math.sin(rot) * 2.0, oz = Math.cos(rot) * 2.0;
-    pp.set(x + ox, 7.5, z + oz); m4.compose(pp, q, sc); heads.setMatrixAt(n, m4); gp.push(x + ox, 7.2, z + oz);
+    pp.set(x + ox, 7.5, z + oz); m4.compose(pp, q, sc); hitems.push({ x: x + ox, z: z + oz, m: m4.clone(), c: null }); gp.push(x + ox, 7.2, z + oz);
     city.lamps.push({ x: x + ox, z: z + oz });
   });
-  heads.frustumCulled = false; g.add(heads);
+  g.add(chunkInst(new THREE.BoxGeometry(0.55, 0.14, 0.35), M.lamp, hitems, { shadow: false }));
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3));
   const pts = new THREE.Points(pg, M.glow); pts.frustumCulled = false; pts.renderOrder = 3; g.add(pts);
-  const sg = (fn) => { const b = new Builder(); fn(b); return b.build(); };
-  g.add(makeInstanced(sg((b) => { b.cyl(0, 0.35, 0, 0.13, 0.11, 0.7, 8, 0xc8261f, false); b.cyl(0, 0.75, 0, 0.14, 0.1, 0.1, 8, 0xc8261f); b.box(0.15, 0.5, 0, 0.12, 0.1, 0.1, 0xb0b0b0); b.box(-0.15, 0.5, 0, 0.12, 0.1, 0.1, 0xb0b0b0); }), M.flat, props.hyd, { rot: true, lift: 0.06, shadow: true }));
-  g.add(makeInstanced(sg((b) => { b.cyl(0, 0.45, 0, 0.3, 0.27, 0.9, 10, 0x2f5a3c, false); b.cyl(0, 0.93, 0, 0.32, 0.3, 0.07, 10, 0x1d3a27); }), M.flat, props.bin, { rot: true, lift: 0.06, shadow: true }));
-  g.add(makeInstanced(sg((b) => { b.box(0, 0.45, 0, 1.6, 0.07, 0.5, 0x7a5230); b.box(0, 0.8, -0.22, 1.6, 0.45, 0.06, 0x7a5230); b.box(-0.7, 0.22, 0, 0.08, 0.44, 0.45, 0x333); b.box(0.7, 0.22, 0, 0.08, 0.44, 0.45, 0x333); }), M.flat, props.bench, { rot: true, lift: 0.06, shadow: true }));
-  g.add(makeInstanced(sg((b) => { b.box(0, 0.55, 0, 0.5, 1.1, 0.5, 0x2a4fb0); b.box(0, 1.12, 0, 0.5, 0.08, 0.55, 0x1b3580); }), M.flat, props.mail, { rot: true, lift: 0.06, shadow: true }));
-  g.add(makeInstanced(sg((b) => { b.box(0, 2.6, 0, 3.6, 0.12, 1.6, 0x8a8f94); b.box(0, 1.3, -0.78, 3.4, 2.4, 0.05, 0x9fd0e0); b.box(-1.7, 1.3, 0, 0.05, 2.4, 1.5, 0x9fd0e0); b.box(1.7, 1.3, 0, 0.05, 2.4, 1.5, 0x9fd0e0); b.box(0, 0.45, -0.4, 2.4, 0.08, 0.4, 0x555a60); }), M.flat, props.shelter, { rot: true, lift: 0.06, shadow: true }));
-  g.add(makeInstanced(sg((b) => { b.cyl(0, 1.3, 0, 0.04, 0.04, 2.6, 6, 0x888d92, false); b.cyl(0, 2.55, 0, 0.5, 0.5, 0.05, 8, 0xd02020); b.cyl(0, 2.55, 0.03, 0.4, 0.4, 0.04, 8, 0xffffff); }), M.flat, props.sign, { rot: true, lift: 0.06 }));
   // Ampeln
   const tl = props.tl;
   g.add(makeInstanced(tlGeom(), M.flat, tl.map((t) => [t.x, t.z, 0]), { lift: 0.06 }));
   const bulb = new THREE.InstancedMesh(new THREE.BoxGeometry(0.3, 0.3, 0.1), M.tl, tl.length);
   tl.forEach((t, n) => {
-    const rot = [0, 1, 2, 3][t.d] * Math.PI / 2; // Bulb zeigt zur Anfahrtsrichtung: Auto fährt Richtung d, sieht Bulb von vorne
     const fx = -DIRS[t.d][0], fz = -DIRS[t.d][1];
-    q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.atan2(fx, fz));
+    q.setFromAxisAngle(yAxis, Math.atan2(fx, fz));
     pp.set(t.x + fx * 0.22, 4.55, t.z + fz * 0.22); m4.compose(pp, q, sc); bulb.setMatrixAt(n, m4); bulb.setColorAt(n, new THREE.Color(0x20ff60));
   });
   bulb.frustumCulled = false; bulb.instanceMatrix.needsUpdate = true; g.add(bulb);
