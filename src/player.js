@@ -239,11 +239,12 @@ export class Player {
     if (ctl && w) {
       const fireHeld = (I.buttons & 1) !== 0, firePressed = I.press('Mouse0');
       if (w.melee) { if (firePressed && this.fireT <= 0) { this.fireT = 1 / w.rate; Combat.melee(this, w); } }
-      else if (w.throw) { if (firePressed && this.fireT <= 0 && this.wdata && this.wdata.ammo > 0) { this.fireT = 1 / w.rate; this.wdata.ammo--; const f = this.camForward(); Combat.throwGrenade(this, new THREE.Vector3(p.x, p.y + 1.5, p.z), f); this.person.punch = 1; if (this.wdata.ammo <= 0) { delete G.profile.weapons.grenade; this.setWeapon('fist'); } } }
+      else if (w.throw) { if (firePressed && this.fireT <= 0 && this.wdata && this.wdata.ammo > 0) { this.fireT = 1 / w.rate; if (!G.settings.infAmmo) this.wdata.ammo--; const f = this.camForward(); Combat.throwGrenade(this, new THREE.Vector3(p.x, p.y + 1.5, p.z), f); this.person.punch = 1; if (this.wdata.ammo <= 0 && !G.settings.infAmmo) { delete G.profile.weapons.grenade; this.setWeapon('fist'); } } }
       else if ((w.auto ? fireHeld : firePressed) && this.fireT <= 0 && this.reloadT <= 0 && !this.swim) {
         const wd = this.wdata;
+        if (wd && G.settings.infAmmo && w.mag) { wd.mag = w.mag; if (wd.ammo < w.mag) wd.ammo = w.mag; } // unendlich Munition: Magazin bleibt voll
         if (wd && wd.mag > 0) {
-          this.fireT = 1 / w.rate; wd.mag--; this.shoot(); this.person.shoot = 1; this.aiming = true;
+          this.fireT = 1 / w.rate; if (!G.settings.infAmmo) wd.mag--; this.shoot(); this.person.shoot = 1; this.aiming = true;
           if (wd.mag === 0) this.reload();
         } else if (wd) this.reload();
       }

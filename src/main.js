@@ -388,6 +388,7 @@ G.cheatCode = (c) => {
     case 'NACHT': G.hour = 23; return 'Nacht';
     case 'TAG': G.hour = 12; return 'Mittag';
     case 'SUNSET': G.hour = 18.9; return 'Sonnenuntergang';
+    case 'MUNITION': G.settings.infAmmo = !G.settings.infAmmo; Save.saveSettings(); return 'Unendlich Munition ' + (G.settings.infAmmo ? 'an' : 'aus');
     case 'GOTT': ch.god = !ch.god; return 'Gott-Modus ' + (ch.god ? 'an' : 'aus');
     case 'NOCOPS': ch.noWanted = !ch.noWanted; return 'Keine Fahndung: ' + (ch.noWanted ? 'an' : 'aus');
     case 'PANZER': return spawnV('army'); case 'FLUG': return spawnV('jet_l'); case 'AUTO': return spawnV('sport_2'); case 'SUPER': return spawnV('super_2'); case 'BOOT': return spawnV('sp_boat1'); case 'HELI': return spawnV('heli_m'); case 'BIKE': return spawnV('bike_6'); case 'BUS': return spawnV('bus_1');
