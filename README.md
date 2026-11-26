@@ -28,7 +28,7 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 - **Sonneneffekte:** sichtbare Sonnenscheibe, Lichtstrahlen (God Rays) durch Häuserlücken, Linsenreflexe, Bloom, Verdeckung durch Gebäude und Wolken.
 - **Echtzeit-Spiegelungen:** der Ozean und nasse Straßen/Pfützen spiegeln Stadt, Himmel, Fahrzeuge und Figuren (planare Reflexion), dazu Himmels-Reflexionen auf Lack und Glas.
 - **Lichtkegel:** volumetrische Scheinwerferstrahlen und Lichtflecken auf der Straße bei Nacht, Regen und Nebel.
-- Unter *Einstellungen* lassen sich Spiegelungen und Sonnenstrahlen einzeln abschalten. Die Qualitätsstufe bestimmt Kaskaden, Schattenauflösung und Spiegelungs-Detail (Wechsel lädt die Seite neu).
+- Unter *Einstellungen* lassen sich Spiegelungen und Sonnenstrahlen einzeln abschalten; dort gibt es auch eine FPS-Anzeige und die automatische Leistungsanpassung (senkt bei niedriger Bildrate die Auflösung bzw. die Qualitätsstufe). Die Qualitätsstufe bestimmt Kaskaden, Schattenauflösung und Spiegelungs-Detail (Wechsel lädt die Seite neu).
 
 ## Inhalt
 

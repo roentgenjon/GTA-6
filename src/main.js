@@ -41,7 +41,7 @@ const QUALITY = {
 };
 const TIPS = ['Tipp: Mit der Handbremse (Leertaste) lassen sich Autos gezielt driften.', 'Tipp: Nach einem Verbrechen hilft es, außer Sichtweite zu fahren und das Auto zu wechseln.', 'Tipp: Gelbe Rampen bringen Stunt-Prämien.', 'Tipp: Kaufe Immobilien, um Fahrzeuge zu speichern.', 'Tipp: Regen macht Straßen rutschig – fahr vorsichtig!', 'Tipp: Mit F steigst du auch in Boote, Flugzeuge und Hubschrauber.', 'Tipp: Setze einen Wegpunkt auf der Karte (M) für eine GPS-Route.'];
 
-let lastFovT = 0, renderFrames = 0, sunPass, csm, lastFov = 0, sunOcc = 1, gtao, renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
+let fpsAcc = 0, fpsN = 0, lastFovT = 0, renderFrames = 0, sunPass, csm, lastFov = 0, sunOcc = 1, gtao, renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
 let loaded = false, started = false;
 
 const SunShader = {
@@ -413,6 +413,7 @@ function loop(now) {
   const frozen = !window.__skipRender && ((G.state === 'pause' && UI.tab !== 'char') || (G.state === 'menu' && UI.menuOpen())) && (renderFrames > 3);
   if (frozen) { if (G.state === 'pause') { Input.endFrame(); } Audio.update(dt); Audio.radioTick(dt); return; }
   Gov.tick(rdt);
+  fpsAcc += rdt; fpsN++; if (fpsAcc > 0.5) { const f = fpsN / fpsAcc; fpsAcc = 0; fpsN = 0; document.body.classList.toggle('showfps', !!G.settings.showFps); if (G.settings.showFps) { const el = document.getElementById('fps'); if (el) el.textContent = Math.round(f) + ' FPS · ' + Math.round((window.__gscale || 1) * 100) + '%'; } }
   const st = G.state, sim = st === 'play' || st === 'cutscene' || st === 'menu';
   const pl = G.player;
   Touch.update();

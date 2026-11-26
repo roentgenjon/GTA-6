@@ -179,3 +179,6 @@ body.touch #menu { background: rgba(5,2,14,.92); }
 body.touch .modal { background: rgba(5,2,14,.88); }
 body.touch .win, body.touch .toast, body.touch #prompt { background: rgba(14,8,28,.94); }
 body.touch .tab { padding: 14px 14px; }
+
+#fps { position: absolute; left: 50%; top: 4px; transform: translateX(-50%); font: 700 12px/1 ui-monospace, monospace; color: #9dffb0; text-shadow: 0 1px 3px #000; background: rgba(0,0,0,.35); padding: 3px 8px; border-radius: 6px; pointer-events: none; display: none; }
+body.showfps #fps { display: block; }
