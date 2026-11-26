@@ -14,10 +14,19 @@ export function showLogin(onDone) {
       <div class="msg" id="lg-msg" role="alert"></div>
       <div class="btns"><button class="btn" type="submit" id="lg-login">Anmelden</button><button class="btn alt" type="button" id="lg-reg">Konto erstellen</button></div>
     </form>
+    <div class="srv"><button type="button" class="link" id="lg-srv">⚙ Server: <span id="lg-srvn"></span></button></div>
     <p class="hint">Mit einem Konto spielst du online mit anderen Spielern. Das Passwort bleibt auf deinem Gerät (nur ein Prüfwert wird gespeichert). Nutze kein Passwort, das du anderswo verwendest – ohne eigenen Server ist die Kontoverwaltung nur ein einfacher Schutz.</p>
   </div>`;
   document.body.appendChild(root);
   const $ = (s) => root.querySelector(s), nameI = $('#lg-name'), passI = $('#lg-pass'), msg = $('#lg-msg'), bL = $('#lg-login'), bR = $('#lg-reg');
+  const srvLabel = () => { let s = ''; try { s = localStorage.getItem('vc_server') || ''; } catch (e) { } $('#lg-srvn').textContent = s ? s.replace(/^wss?:\/\//, '') : 'Standard (öffentlich)'; };
+  srvLabel();
+  $('#lg-srv').addEventListener('click', () => {
+    let cur = ''; try { cur = localStorage.getItem('vc_server') || ''; } catch (e) { }
+    const v = prompt('Adresse des Mehrspieler-Servers (z. B. wss://mein-server.onrender.com). Leer lassen = Standard.', cur); if (v === null) return;
+    const t = v.trim(); if (t && !/^wss?:\/\/[^\s]+$/i.test(t)) { msg.className = 'msg err'; msg.textContent = 'Ungültige Adresse – sie muss mit wss:// (oder ws://) beginnen.'; return; }
+    try { if (t) localStorage.setItem('vc_server', t); else localStorage.removeItem('vc_server'); } catch (e) { } srvLabel(); msg.className = 'msg'; msg.textContent = t ? 'Server gespeichert. Neu laden, falls schon verbunden.' : 'Standard-Server aktiv.';
+  });
   let busy = false;
   const run = async (mode) => {
     if (busy) return; busy = true; bL.disabled = bR.disabled = true; msg.className = 'msg'; msg.textContent = mode === 'reg' ? 'Konto wird erstellt … (Name wird online geprüft)' : 'Anmeldung läuft …';

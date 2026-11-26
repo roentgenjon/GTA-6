@@ -1,0 +1,10 @@
+# Render-Blueprint: Dashboard → New → Blueprint → dieses Repository wählen. Danach die Adresse (wss://…onrender.com) im Spiel eintragen.
+services:
+  - type: web
+    name: vicecity-server
+    runtime: node
+    rootDir: server
+    plan: free
+    buildCommand: npm install
+    startCommand: node server.js
+    healthCheckPath: /

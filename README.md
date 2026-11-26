@@ -43,6 +43,10 @@ Für den **Haupt-Admin Entity_2806** und von ihm ernannte Admins (🛡-Knopf lin
 
 **Sicherheit:** Befehle an andere Spieler (Kick/Bann/Stumm/Ansage/Holen/Heilen/Geld) und die Admin-Rechteliste sind mit ECDSA (P-256) signiert; Clients dieser Version ignorieren alles, was nicht vom Haupt-Admin-Schlüssel bzw. einem ernannten Admin stammt. Vertrauensanker ist der öffentliche Schlüssel des Haupt-Admins (`OWNER_PUB` in `src/adminsec.js`; solange er dort `null` ist, wird der zuerst veröffentlichte Schlüssel gemerkt). Den privaten Schlüssel (Werkzeuge → Admin-Schlüssel) sichern: ohne ihn lassen sich keine Admin-Befehle mehr senden. Grenze: Ein Spieler mit manipuliertem Client kann sein *eigenes* Spiel beliebig ändern; er kann aber keine Befehle an andere fälschen.
 
+## Eigener Mehrspieler-Server
+
+`server/` enthält einen eigenen Server (Node.js, `npm install && node server.js`) mit Namensschutz und Speicherung, dazu `render.yaml` für kostenloses Hosting bei Render. Anleitung: `server/README.md`. Die Adresse trägt jeder Spieler im Anmeldebildschirm unter „⚙ Server“ ein, oder sie wird fest in `src/config.js` (`SERVER_URL`) gesetzt. Ohne eigenen Server nutzt das Spiel öffentliche Test-Broker.
+
 ## Leistung auf Tablets
 
 - **Mittel** ist auf iPad/Tablets der Standard: ein Schattenkaskaden-Fenster (ca. 150 m) mit 4-Punkt-Filter, keine Spiegelungs-Zusatzrunde und keine Sonnenstrahlen, Kantenglättung per FXAA statt MSAA, Lampenlichter nur nachts (beide Licht-Varianten werden beim Laden vorab kompiliert), Himmel wird zuletzt gezeichnet (Wolken-Shader nur auf freien Pixeln). Spiegelungen und Sonnenstrahlen gibt es ab **Hoch**.

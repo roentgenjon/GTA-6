@@ -1,12 +1,17 @@
 // Minimaler MQTT-3.1.1-Client über WebSocket (nur QoS 0, Retain, Last-Will, Keep-Alive, automatisches Wiederverbinden).
 // Dient als Vermittler für Mehrspieler und Kontenverzeichnis, weil die Seite statisch gehostet wird (kein eigener Server).
+import { SERVER_URL } from './config.js';
 const enc = new TextEncoder(), dec = new TextDecoder();
 
 // Öffentliche Broker (WebSocket mit TLS) – werden der Reihe nach probiert. Mit ?broker=ws://host:port lässt sich ein eigener erzwingen.
 export const BROKERS = ['wss://broker.emqx.io:8084/mqtt', 'wss://broker.hivemq.com:8884/mqtt', 'wss://test.mosquitto.org:8081/'];
 
 // ?broker=ws://host:port erzwingt einen eigenen Broker (Tests, eigener Server)
-export function brokerUrls() { try { const f = new URLSearchParams(location.search).get('broker'); if (f) return [f]; } catch (e) { } return BROKERS; }
+export function brokerUrls() {
+  try { const f = new URLSearchParams(location.search).get('broker'); if (f) return [f]; } catch (e) { }
+  try { const s = localStorage.getItem('vc_server'); if (s) return [s]; } catch (e) { }
+  return SERVER_URL ? [SERVER_URL] : BROKERS;
+}
 function varint(n) { const o = []; do { let b = n % 128; n = Math.floor(n / 128); if (n > 0) b |= 128; o.push(b); } while (n > 0); return o; }
 function str(s) { const b = enc.encode(s); return [b.length >> 8, b.length & 255, ...b]; }
 function packet(type, body) { const out = new Uint8Array(1 + varint(body.length).length + body.length); out[0] = type; const v = varint(body.length); out.set(v, 1); out.set(body, 1 + v.length); return out; }

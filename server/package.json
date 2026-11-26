@@ -1,0 +1,9 @@
+{
+  "name": "vicecity-server",
+  "version": "1.0.0",
+  "description": "Mehrspieler-Server für Vice City (MQTT-über-WebSocket-Broker mit Namensschutz und Speicherung)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "engines": { "node": ">=18" },
+  "dependencies": { "aedes": "^1.0.0", "ws": "^8.18.0" }
+}
