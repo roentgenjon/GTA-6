@@ -18,7 +18,7 @@ export const Touch = {
     r.innerHTML = `
       <div id="t-look"></div>
       <div id="t-stick"><div class="base"><div class="knob"></div></div></div>
-      <div class="tg" data-g="top"><button class="tb sm" data-k="pause">☰</button><button class="tb sm" data-k="map">🗺</button><button class="tb sm" data-k="fs">⛶</button></div>
+      <div class="tg" data-g="top"><button class="tb sm" data-k="pause">☰</button><button class="tb sm" data-k="map">🗺</button><button class="tb sm" data-k="fs">⛶</button><button class="tb sm" data-k="chat">💬</button></div>
       <div class="tg" data-g="foot">
         <button class="tb big fire" data-m="fire">🔫</button><button class="tb" data-m="aim" style="right:128px;bottom:150px">🎯</button>
         <button class="tb" data-key="Space" style="right:24px;bottom:150px">⤒</button><button class="tb sm" data-key="KeyR" style="right:215px;bottom:60px">R</button>
@@ -61,7 +61,7 @@ export const Touch = {
         else if (mouse === 'fire') { Input.buttons |= 1; Input.pressed.add('Mouse0'); } else if (mouse === 'aim') { Input.buttons |= 4; Input.pressed.add('Mouse2'); }
         else if (wheel) Input.wheel += +wheel;
         else if (hold === 'sprint') { this.sprint = !this.sprint; b.classList.toggle('lock', this.sprint); }
-        else if (act === 'pause') { if (G.state === 'play') emit('pause'); } else if (act === 'map') { if (G.state === 'play') G.ui.openMenu('map'); }
+        else if (act === 'pause') { if (G.state === 'play') emit('pause'); } else if (act === 'map') { if (G.state === 'play') G.ui.openMenu('map'); } else if (act === 'chat') { if (G.state === 'play') { if (G.openChat) G.openChat(); } }
         else if (act === 'fs') { const d = document.documentElement; const f = d.requestFullscreen || d.webkitRequestFullscreen; if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else if (f) f.call(d); }
       };
       const up = (e) => { b.classList.remove('on'); if (key) { Input.keys[key] = false; G.keys[key] = false; } else if (mouse === 'fire') Input.buttons &= ~1; else if (mouse === 'aim') Input.buttons &= ~4; };

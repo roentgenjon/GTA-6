@@ -77,6 +77,7 @@ export const UI = {
     const info = Save.info();
     t.innerHTML = `<h1>VICE<br>CITY</h1><div class="sub">Open World · Ultra Edition</div>
       <div class="menu">
+        ${G.account ? `<div class="acct">👤 Angemeldet als <b>${String(G.account.name).replace(/[<>&"]/g, '')}</b> <button class="link" data-a="logout">Abmelden</button></div>` : ''}
         ${info ? `<button class="btn" data-a="continue">Fortsetzen <small style="opacity:.7;font-weight:400">· ${fmtMoney(info.money)} · ${info.missions} Missionen</small></button>` : ''}
         <button class="btn ${info ? 'alt' : ''}" data-a="new">Neues Spiel</button>
         <button class="btn alt" data-a="settings">Einstellungen</button>
@@ -84,7 +85,7 @@ export const UI = {
         <button class="btn alt" data-a="credits">Credits</button>
       </div>
       <div class="foot"><span>WASD Bewegen · Maus Kamera · E Interaktion · F Fahrzeug · ESC Pause</span><span>Prozedural generierte Open-World · Three.js</span></div>`;
-    t.onclick = (e) => { const a = e.target.closest('[data-a]'); if (!a) return; Audio.init(); Audio.resume(); Audio.play('ui'); const act = a.dataset.a; if (act === 'new') G.startNew(); else if (act === 'continue') G.continueGame(); else if (act === 'settings') this.openMenu('settings', true); else if (act === 'controls') this.openMenu('controls', true); else if (act === 'credits') this.showCredits(); };
+    t.onclick = (e) => { const a = e.target.closest('[data-a]'); if (!a) return; Audio.init(); Audio.resume(); Audio.play('ui'); const act = a.dataset.a; if (act === 'logout') G.logout(); else if (act === 'new') G.startNew(); else if (act === 'continue') G.continueGame(); else if (act === 'settings') this.openMenu('settings', true); else if (act === 'controls') this.openMenu('controls', true); else if (act === 'credits') this.showCredits(); };
   },
   hideTitle() { $('#title').classList.add('hidden'); },
   // ---------------- HUD ----------------
@@ -195,6 +196,7 @@ export const UI = {
     for (const m of Markers.items) { if (m.hidden) continue; if (m.type === 'mission') dot(m.x, m.z, '#ffd23a', 9); else if (m.type === 'obj') dot(m.x, m.z, '#ffd23a', 8); else if (m.type === 'enemy') dot(m.x, m.z, '#ff3b3b', 6); else if (m.type === 'race') dot(m.x, m.z, '#b36bff', 8); }
     for (const v of G.entities.vehicles) { if ((v.isPolice || v.copUnit) && v.driver && !v.wreck) { dot(v.pos.x, v.pos.z, Math.floor(G.clock * 4) % 2 ? '#ff2d4d' : '#3d7bff', 6); } }
     for (const p of G.entities.peds) if (p.role === 'cop' && !p.dead && Police.level > 0) dot(p.pos.x, p.pos.z, '#4d8bff', 4);
+    if (G.multiList) for (const r of G.multiList()) dot(r.x, r.z, '#35ffb4', 6);
     if (Markers.waypoint) dot(Markers.waypoint.x, Markers.waypoint.z, '#ff3b5c', 9);
     // Spieler-Pfeil
     c.save(); c.translate(W / 2, H / 2); c.rotate(cy - (pl.vehicle ? pl.vehicle.yaw : pl.yaw)); c.fillStyle = '#fff'; c.strokeStyle = '#000'; c.lineWidth = 3; c.beginPath(); c.moveTo(0, -13); c.lineTo(9, 10); c.lineTo(0, 5); c.lineTo(-9, 10); c.closePath(); c.fill(); c.stroke(); c.restore();

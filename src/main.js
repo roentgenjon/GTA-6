@@ -28,6 +28,9 @@ import { newProfile, Save, Eco } from './profile.js';
 import { UI } from './ui.js';
 import { Touch } from './touch.js';
 import { Updater } from './updater.js';
+import { Accounts } from './accounts.js';
+import { Multi } from './multi.js';
+import { showLogin } from './login.js';
 import { city, cullList } from './city.js';
 import { SITES } from './sites.js';
 import { BY_ID, CATALOG } from './catalog.js';
@@ -176,7 +179,7 @@ async function boot() {
   on('playerDied', onDied); on('busted', onBusted);
   on('missionComplete', () => { Missions.refreshMarkers(); }); on('missionFailed', () => { Missions.refreshMarkers(); });
   G.autosave = () => { if (started) Save.save(); };
-  window.addEventListener('beforeunload', () => { if (started && G.state !== 'menu') { try { Save.serialize(); const r = Save.serialize(); localStorage.setItem('vicecity_save_v1', JSON.stringify(r)); } catch (e) { } } });
+  window.addEventListener('beforeunload', () => { if (started && G.state !== 'menu') { try { Save.serialize(); const r = Save.serialize(); localStorage.setItem(Save.key(), JSON.stringify(r)); } catch (e) { } } });
   document.addEventListener('keydown', (e) => { if (e.code === 'KeyR' && G.state === 'play' && G.player.vehicle) { const st = Audio.nextStation(1); UI.radioShow(st); } if (e.code === 'KeyT' && G.state === 'play') Taxi.toggle(); });
   document.addEventListener('visibilitychange', () => { if (document.hidden && G.state === 'play') emit('pause'); });
   UI.setLoading(1, 'Bereit.'); Updater.init();
@@ -184,9 +187,16 @@ async function boot() {
   window.__gameReady = true;
   let resume = false; try { resume = sessionStorage.getItem('vc_resume') === '1'; sessionStorage.removeItem('vc_resume'); } catch (e) { }
   for (const ev of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(ev, () => { try { Audio.init(); Audio.resume(); } catch (e) { } }, { passive: true });
-  if (new URLSearchParams(location.search).has('autostart')) { G.startNew(); }
-  else if (resume && Save.has()) { G.continueGame(); UI.toast('✅ Spiel wurde aktualisiert'); }
-  else UI.showTitle();
+  // Anmeldung ist Pflicht: erst nach Name + Passwort geht es weiter (gespeichertes Konto → automatisch)
+  const enter = () => {
+    G.account = Accounts.user; Save.setKey(Accounts.saveKey()); Multi.start(Accounts.user.name);
+    if (new URLSearchParams(location.search).has('autostart')) { G.startNew(); }
+    else if (resume && Save.has()) { G.continueGame(); UI.toast('✅ Spiel wurde aktualisiert'); }
+    else UI.showTitle();
+  };
+  G.logout = () => { try { if (started) Save.save(); } catch (e) { } Multi.stop(); Accounts.logout(); location.reload(); };
+  G.state = 'menu'; UI.hud.classList.add('hidden');
+  if (Accounts.restore()) enter(); else showLogin(enter);
   G.state = G.state === 'menu' || G.state === 'play' ? G.state : 'menu';
   requestAnimationFrame(loop);
 }
@@ -495,7 +505,7 @@ function loop(now) {
     if (st !== 'menu' || true) { const ts = G.settings.timeScale; G.hour += dt * ts / 60; if (G.hour >= 24) { G.hour -= 24; G.day++; } }
     G.weather.update(dt);
     pl.update(dt);
-    Veh.update(dt); Peds.update(dt); Traffic.update(dt); Police.update(dt); Combat.update(dt);
+    Veh.update(dt); Peds.update(dt); Traffic.update(dt); Police.update(dt); Combat.update(dt); Multi.update(dt);
     if (st !== 'menu') { Missions.update(dt); Race.update(dt); Taxi.update(dt); Delivery.update(dt); Events.update(dt); Eco.updateGarage(); updateInteract(dt); Markers.update(dt); saveTimer += dt; }
     else { Markers.update(dt); }
     UI.tickCutscene(dt);
@@ -536,12 +546,13 @@ function loop(now) {
   } else renderer.render(scene, camera);
   const _t2 = performance.now(); window.__prof = { sim: _t1 - _t0, render: _t2 - _t1, calls: renderer.info.render.calls, tris: renderer.info.render.triangles };
   // Autosave alle 2 Minuten (nur im Spiel)
-  if (saveTimer > 150 && G.state === 'play') { saveTimer = 0; try { localStorage.setItem('vicecity_save_v1', JSON.stringify(Save.serialize())); } catch (e) { } }
+  if (saveTimer > 150 && G.state === 'play') { saveTimer = 0; try { localStorage.setItem(Save.key(), JSON.stringify(Save.serialize())); } catch (e) { } }
   // Fähigkeiten steigern
   if (G.skillTick > 5) { G.skillTick = 0; if (pl.vehicle && (pl.vehicle.kind === 'plane' || pl.vehicle.kind === 'heli') && !pl.vehicle.grounded) G.profile.skills.flying = Math.min(1, G.profile.skills.flying + 0.003); if (pl.sprinting) G.profile.skills.stamina = Math.min(1, G.profile.skills.stamina + 0.004); }
   window.__frame = (window.__frame || 0) + 1;
 }
 // Debug-Hooks
 window.__dbg = { get composer() { return composer; }, get csm() { return csm; }, get sunPass() { return sunPass; }, get cinePass() { return cinePass; }, get outPass() { return outPass; }, get bloom() { return bloom; }, get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, get sky() { return sky; }, get lamps() { return lampLights; }, get spot() { return headSpot; }, cullList, Reflect, updateSunPass, Gov, QUALITY, setupComposer };
-window.__G = G; window.__mods = { World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
+G.multiList = () => Multi.list();
+window.__G = G; window.__mods = { Multi, Accounts, World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
 boot().catch((e) => { console.error(e); const t = document.querySelector('#loading .tip'); if (t) t.textContent = 'Fehler beim Start: ' + e.message; });

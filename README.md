@@ -30,6 +30,13 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 - **Lichtkegel:** volumetrische Scheinwerferstrahlen und Lichtflecken auf der Straße bei Nacht, Regen und Nebel.
 - Unter *Einstellungen* lassen sich Spiegelungen und Sonnenstrahlen einzeln abschalten; dort gibt es auch eine FPS-Anzeige und die automatische Leistungsanpassung (senkt bei niedriger Bildrate die Auflösung bzw. die Qualitätsstufe). Die Qualitätsstufe bestimmt Kaskaden, Schattenauflösung und Spiegelungs-Detail (Wechsel lädt die Seite neu).
 
+## Anmeldung & Mehrspieler
+
+- **Anmeldung ist Pflicht:** Beim Start erscheint eine Anmeldeseite (Name + Passwort, „Konto erstellen“ für neue Spieler, „Angemeldet bleiben“ merkt das Konto auf dem Gerät; Abmelden im Hauptmenü). Jedes Konto hat einen eigenen Spielstand; der bisherige Spielstand gehört dem ersten Konto auf dem Gerät.
+- **Mehrspieler:** Angemeldete Spieler sehen sich gegenseitig mit Namensschild (zu Fuß oder im Fahrzeug, auch als Punkt auf der Minikarte) und können per Text-Chat schreiben (Enter bzw. 💬-Knopf). Nicht synchronisiert: Schießen/Schaden, Missionen, Verkehr und Passanten – jeder hat seine eigene Welt, nur die Mitspieler sind echt.
+- **Technik:** Weil die Seite statisch gehostet wird (kein eigener Server), läuft alles über einen öffentlichen MQTT-Broker (`src/net.js`, Fallbacks: EMQX → HiveMQ → Mosquitto; mit `?broker=wss://…` lässt sich ein eigener Broker erzwingen). Das Passwort verlässt nie das Gerät: aus Name + Passwort wird per PBKDF2 ein Prüfwert; der Name wird online über eine Retained-Nachricht reserviert (`src/accounts.js`).
+- **Grenzen:** Ein öffentlicher Broker kann Namen nicht erzwingen – ein manipulierter Client könnte einen Namen überschreiben oder sich als anderer ausgeben; Positionen und Chat sind für jeden mitlesbar, der das Thema kennt. Für echte Konten braucht es ein eigenes Backend (z. B. Firebase/Supabase oder einen eigenen WebSocket-Server).
+
 ## Leistung auf Tablets
 
 - **Mittel** ist auf iPad/Tablets der Standard: ein Schattenkaskaden-Fenster (ca. 150 m) mit 4-Punkt-Filter, keine Spiegelungs-Zusatzrunde und keine Sonnenstrahlen, Kantenglättung per FXAA statt MSAA, Lampenlichter nur nachts (beide Licht-Varianten werden beim Laden vorab kompiliert), Himmel wird zuletzt gezeichnet (Wolken-Shader nur auf freien Pixeln). Spiegelungen und Sonnenstrahlen gibt es ab **Hoch**.
@@ -66,7 +73,7 @@ Jeder Push startet das Deployment (Branch `gh-pages`). Der Build stempelt eine V
 
 ```
 index.html, styles.css
-src/  main.js (Schleife)  updater.js (Auto-Update)  bodies.js (Figuren-Generator)  world.js/city.js/terrain.js (Welt)  sky.js (Wetter)
+src/  main.js (Schleife)  updater.js (Auto-Update)  accounts.js/login.js/net.js/multi.js (Konten, Mehrspieler)  bodies.js (Figuren-Generator)  world.js/city.js/terrain.js (Welt)  sky.js (Wetter)
       vehicles.js/models.js/catalog.js (Fahrzeuge)  persons.js/peds.js/traffic.js (Leben)
       police.js  combat.js  missions.js  activities.js  profile.js  ui.js  audio.js ...
 vendor/three  (Three.js + Post-Processing-Addons)

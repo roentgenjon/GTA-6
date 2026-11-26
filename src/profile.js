@@ -8,7 +8,7 @@ import { city } from './city.js';
 import { Veh } from './vehicles.js';
 import * as TR from './terrain.js';
 
-const KEY = 'vicecity_save_v1', SKEY = 'vicecity_settings_v1';
+let KEY = 'vicecity_save_v1'; const SKEY = 'vicecity_settings_v1';
 
 export function newProfile() {
   return {
@@ -21,6 +21,7 @@ export function newProfile() {
   };
 }
 export const Save = {
+  setKey(k) { KEY = k; }, key() { return KEY; },
   has() { try { return !!localStorage.getItem(KEY); } catch (e) { return false; } },
   info() { try { const s = JSON.parse(localStorage.getItem(KEY)); return s ? { at: s.at, money: s.profile.money, day: s.day, missions: s.profile.story.done.length } : null; } catch (e) { return null; } },
   serialize() {
