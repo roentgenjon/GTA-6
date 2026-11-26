@@ -31,6 +31,7 @@ import { Updater } from './updater.js';
 import { Accounts } from './accounts.js';
 import { Multi } from './multi.js';
 import { Admin } from './admin.js';
+import { Sec } from './adminsec.js';
 import { showLogin } from './login.js';
 import { city, cullList } from './city.js';
 import { SITES } from './sites.js';
@@ -555,5 +556,5 @@ function loop(now) {
 // Debug-Hooks
 window.__dbg = { get composer() { return composer; }, get csm() { return csm; }, get sunPass() { return sunPass; }, get cinePass() { return cinePass; }, get outPass() { return outPass; }, get bloom() { return bloom; }, get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, get sky() { return sky; }, get lamps() { return lampLights; }, get spot() { return headSpot; }, cullList, Reflect, updateSunPass, Gov, QUALITY, setupComposer };
 G.multiList = () => Multi.list();
-window.__G = G; window.__mods = { Admin, Multi, Accounts, World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
+window.__G = G; window.__mods = { Sec, Admin, Multi, Accounts, World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
 boot().catch((e) => { console.error(e); const t = document.querySelector('#loading .tip'); if (t) t.textContent = 'Fehler beim Start: ' + e.message; });

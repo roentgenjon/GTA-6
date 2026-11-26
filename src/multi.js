@@ -8,6 +8,7 @@ import { Person } from './persons.js';
 import { buildModel } from './models.js';
 import { BY_ID } from './catalog.js';
 import { Input } from './player.js';
+import { Sec, PERMS } from './adminsec.js';
 
 const ROOM = 'main', IN_GAME = new Set(['play', 'pause', 'cutscene', 'dead']);
 const tag = (name, own) => {
@@ -24,7 +25,7 @@ const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&l
 export const Multi = {
   on: false, status: 'aus', muted: new Set(), remotes: new Map(), id: Math.random().toString(36).slice(2, 8), name: '', mq: null, sendT: 0, lookT: 0, wasIn: false, chatEl: null, chatOpen: false, lastChat: 0, dup: false,
   async start(name) {
-    if (this.mq) return;
+    if (this.mq || this.banned) return;
     this.name = name; this.setStatus('verbinde');
     const base = `${NS}/room/${ROOM}`, mine = `${base}/p/${this.id}`;
     const forced = new URLSearchParams(location.search).get('broker');
@@ -40,14 +41,52 @@ export const Multi = {
       mq.subscribe(`${base}/p/+`, (t, msg) => this.onState(msg));
       mq.subscribe(`${base}/chat`, (t, msg) => this.onChat(msg));
     }
+    this.adminSubs(mq, base);
     Accounts.syncClaim(mq).then(() => { if (Accounts.conflict) { emit('toast', '⚠ Der Kontoname ist online von jemand anderem belegt – Mehrspieler aus.'); this.stop(); } });
     // Doppelanmeldung (dasselbe Konto auf einem anderen Gerät) erkennen
     setTimeout(() => { if (this.dup) { emit('toast', '⚠ Dieses Konto ist schon auf einem anderen Gerät online – Mehrspieler aus.'); this.stop(); } }, 2600);
   },
+  // Admin-Kanal: erst Schlüssel des Haupt-Admins, dann Rechteliste, dann Bann/Stumm/Befehle (jeweils Signatur-geprüft)
+  async adminSubs(mq, base) {
+    if (this.adminWired) return; this.adminWired = true;
+    try { await Sec.init(); } catch (e) { return; }
+    mq.subscribe(`${NS}/ownerkey`, (t, msg) => Sec.onOwnerKey(msg));
+    setTimeout(async () => {
+      if (Sec.isOwnerName() && !Sec.ownerPub && Sec.pub) { await Sec.publishOwnerKey(mq); }
+      mq.subscribe(`${NS}/admins`, async (t, msg) => { if (await Sec.onAdmins(msg) && G.admin) G.admin.changed(); });
+      setTimeout(() => {
+        mq.subscribe(`${NS}/ban/+`, (t, msg) => this.onCmd(msg, true));
+        mq.subscribe(`${NS}/mute/+`, (t, msg) => this.onCmd(msg, true));
+        mq.subscribe(`${base}/cmd`, (t, msg) => this.onCmd(msg, false));
+      }, 900);
+    }, 900);
+  },
+  async onCmd(msg, retained) {
+    const r = await Sec.open(msg); if (!r || r.p.admins) return;
+    const p = r.p, me = Accounts.user && Accounts.user.key, c = p.c, perms = r.perms || [];
+    const need = { kick: 'kick', ban: 'ban', unban: 'ban', mute: 'mute', unmute: 'mute', announce: 'announce', bring: 'bring', heal: 'heal', give: 'give' }[c];
+    if (!need || !perms.includes(need)) return;
+    if (!retained) { if (Math.abs(Date.now() - p.t) > 90000 || Sec.seen.has(p.n)) return; Sec.seen.add(p.n); if (Sec.seen.size > 200) Sec.seen.clear(); }
+    const to = String(p.to || ''), mine = to === me, a = p.a || {}, by = esc(String(p.f).slice(0, 16));
+    if (c === 'mute') { Sec.mutes.set(to, true); if (mine) emit('toast', '🔇 Du wurdest stummgeschaltet.'); if (G.admin) G.admin.changed(); return; }
+    if (c === 'unmute') { Sec.mutes.delete(to); if (mine) emit('toast', '🔊 Stummschaltung aufgehoben.'); if (G.admin) G.admin.changed(); return; }
+    if (c === 'ban') {
+      const until = (p.t || Date.now()) + Math.min(a.min || 60, 60 * 24 * 365) * 60000; if (until < Date.now()) return; Sec.bans.set(to, { until, by: p.f, why: String(a.why || '').slice(0, 60) });
+      if (mine) this.kicked(`Gebannt von ${by}${a.why ? ': ' + esc(String(a.why).slice(0, 60)) : ''}`); if (G.admin) G.admin.changed(); return;
+    }
+    if (c === 'unban') { Sec.bans.delete(to); if (G.admin) G.admin.changed(); return; }
+    if (c === 'announce') { emit('toast', '📢 ' + esc(String(a.m || '').slice(0, 120))); this.addChatLine('📢 ' + p.f, String(a.m || '').slice(0, 120), 'ann'); return; }
+    if (!mine) return;
+    if (c === 'kick') this.kicked(`Von ${by} aus dem Mehrspieler entfernt`);
+    else if (c === 'bring' && Number.isFinite(a.x) && Number.isFinite(a.z) && G.player) { if (G.player.vehicle) G.player.exitVehicle(true); G.player.teleport(a.x, a.z); emit('toast', `📍 ${by} hat dich zu sich geholt`); }
+    else if (c === 'heal' && G.player) { G.player.hp = G.player.maxHp || 100; G.player.armor = 100; emit('toast', `💚 ${by} hat dich geheilt`); }
+    else if (c === 'give' && G.profile) { const n = Math.max(0, Math.min(1e7, Math.round(+a.amount || 0))); G.profile.money += n; emit('toast', `💰 ${by} schenkt dir $${n.toLocaleString('de-DE')}`); }
+  },
+  kicked(why) { this.banned = true; emit('toast', '🚫 ' + why); this.stop(); },
   setStatus(s) { this.status = s; this.updateBadge(); },
   stop() {
     if (this.mq) { try { this.mq.publish(this.mine, JSON.stringify({ i: this.id, bye: 1 })); } catch (e) { } this.mq.close(); this.mq = null; }
-    this.on = false; this.subscribed = false; for (const id of [...this.remotes.keys()]) this.drop(id); this.setStatus('aus'); if (this.chatEl) this.chatEl.root.style.display = 'none';
+    this.on = false; this.subscribed = false; this.adminWired = false; for (const id of [...this.remotes.keys()]) this.drop(id); this.setStatus('aus'); if (this.chatEl) this.chatEl.root.style.display = 'none';
   },
   list() { const a = []; for (const r of this.remotes.values()) if (r.group) a.push({ name: r.name, x: r.x, z: r.z }); return a; },
   onState(msg) {
@@ -58,7 +97,7 @@ export const Multi = {
     if (m.n.toLowerCase() === (Accounts.user && Accounts.user.name || '').toLowerCase()) { this.dup = true; return; }
     let r = this.remotes.get(m.i);
     if (!r) { r = { id: m.i, name: String(m.n).slice(0, 16), x: m.x, y: m.y || 0, z: m.z, yaw: m.r || 0, s: 0, group: null, look: null, veh: null, vehId: null, last: 0, snap: true }; this.remotes.set(m.i, r); this.lookT = 0; this.notify(`🌐 ${esc(r.name)} ist beigetreten`); }
-    r.last = performance.now(); r.x = m.x; r.y = m.y || 0; r.z = m.z; r.yaw = m.r || 0; r.s = m.s || 0; r.p = m.p || 0; r.o = m.o || 0; r.w = m.w || 0; r.vehId = m.v || null; r.c1 = m.a; r.c2 = m.b;
+    r.last = performance.now(); r.x = m.x; r.y = m.y || 0; r.z = m.z; r.yaw = m.r || 0; r.s = m.s || 0; r.p = m.p || 0; r.o = m.o || 0; r.w = m.w || 0; r.vehId = m.v || null; if (typeof m.k === 'string' && m.k.length < 120) r.k = m.k; r.c1 = m.a; r.c2 = m.b;
     if (m.l && typeof m.l === 'object') { m.l.scale = Math.min(1.25, Math.max(0.8, +m.l.scale || 1)); m.l.fat = Math.min(1.3, Math.max(0.8, +m.l.fat || 1)); if (!r.look || JSON.stringify(m.l) !== r.lookKey) { r.look = m.l; r.lookKey = JSON.stringify(m.l); r.rebuild = true; } }
   },
   notify(t) { emit('toast', t); },
@@ -98,7 +137,7 @@ export const Multi = {
         const q = (n) => Math.round(n * 100) / 100;
         const m = { i: this.id, n: this.name, x: q(x), y: q(y), z: q(z), r: q(v ? v.yaw : pl.yaw), s: q(v ? Math.abs(v.speed) : pl.speed || 0) };
         if (v) { m.v = v.spec.id; m.a = v.c1; m.b = v.c2; m.p = q(v.pitch || 0); m.o = q(v.roll || 0); m.w = q(v.steerAngle || 0); }
-        if (this.lookT <= 0) { this.lookT = 3; m.l = G.profile && G.profile.look; }
+        if (this.lookT <= 0) { this.lookT = 3; m.l = G.profile && G.profile.look; if (Sec.pub) m.k = Sec.pub; }
         mq.publish(this.mine, JSON.stringify(m));
       }
       this.wasIn = true;
@@ -154,15 +193,15 @@ export const Multi = {
     try { if (!document.body.classList.contains('touch') && G.state === 'play') Input.lock(document.getElementById('game')); } catch (e) { }
   },
   sendChat(t) {
-    const now = performance.now(); if (!this.mq || now - this.lastChat < 700) return; this.lastChat = now;
+    const now = performance.now(); if (!this.mq || now - this.lastChat < 700) return; if (Accounts.user && Sec.mutes.has(Accounts.user.key)) { emit('toast', '🔇 Du bist stummgeschaltet.'); return; } this.lastChat = now;
     this.mq.publish(`${this.base}/chat`, JSON.stringify({ n: this.name, m: t.slice(0, 120), i: this.id }));
   },
-  sendAnnounce(t) { if (!this.mq) return; this.mq.publish(`${this.base}/chat`, JSON.stringify({ n: this.name, m: t.slice(0, 120), i: this.id, a: 1 })); },
+  sendAnnounce(t) { if (!this.mq) return; Sec.cmd(this.mq, this.base, 'announce', '*', { m: t.slice(0, 120) }); },
+  addChatLine(n, text, cls = '') { if (!this.chatEl) return; const el = document.createElement('div'); el.className = 'mpmsg ' + cls; el.dataset.t = performance.now(); el.innerHTML = `<b>${esc(n)}</b> ${esc(text)}`; this.chatEl.log.appendChild(el); while (this.chatEl.log.children.length > 7) this.chatEl.log.firstChild.remove(); },
   onChat(msg) {
     let m; try { m = JSON.parse(msg); } catch (e) { return; } if (!m || typeof m.m !== 'string') return;
-    if (this.muted.has(String(m.n || '').toLowerCase())) return;
-    const ann = m.a === 1 && String(m.n || '').toLowerCase() === 'entity_2806'; // Admin-Ansage (nur ein Hinweis, keine verbindliche Prüfung)
-    if (ann) emit('toast', '📢 ' + esc(String(m.m).slice(0, 120)));
+    if (this.muted.has(String(m.n || '').toLowerCase()) || Sec.mutes.has(String(m.n || '').toLowerCase())) return;
+    const ann = false;
     const mine = m.i === this.id, el = document.createElement('div'); el.className = 'mpmsg' + (mine ? ' me' : '') + (ann ? ' ann' : ''); el.dataset.t = performance.now();
     el.innerHTML = `<b>${esc(String(m.n || '?').slice(0, 16))}</b> ${esc(m.m.slice(0, 120))}`; this.chatEl.log.appendChild(el);
     while (this.chatEl.log.children.length > 7) this.chatEl.log.firstChild.remove();

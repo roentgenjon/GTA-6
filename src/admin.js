@@ -2,6 +2,7 @@
 import { G, emit } from './game.js';
 import { Accounts } from './accounts.js';
 import { Multi } from './multi.js';
+import { Sec, PERMS, OWNER } from './adminsec.js';
 import { Input } from './player.js';
 import { Veh } from './vehicles.js';
 import { Peds } from './peds.js';
@@ -22,17 +23,19 @@ const fmt = (n) => '$' + Math.round(n).toLocaleString('de-DE');
 
 export const Admin = {
   open: false, root: null, tab: 'player', btn: null, hdrT: 0, wasAdmin: false,
-  isAdmin() { return !!(Accounts.user && Accounts.user.key === ADMIN); },
+  isAdmin() { return !!(Accounts.user && (Accounts.user.key === ADMIN || Sec.myPerms().length)); },
+  has(p) { return !!(Accounts.user && ((Accounts.user.key === ADMIN) || Sec.myPerms().includes(p))); },
+  changed() { if (this.open && (this.tab === 'multi' || this.tab === 'tools')) this.render(); },
   C() { return G.cheat || (G.cheat = {}); },
   init() {
-    if (!this.isAdmin() || this.btn) return;
+    if (this.btn || !Accounts.user) return; G.admin = this;
     const b = document.createElement('button'); b.id = 'adminbtn'; b.textContent = '🛡'; b.title = 'Admin-Panel (F9)'; b.style.display = 'none';
     b.addEventListener('click', () => this.toggle()); document.body.appendChild(b); this.btn = b;
     window.addEventListener('keydown', (e) => { if (e.code === 'F9' && IN_GAME.has(G.state)) { e.preventDefault(); this.toggle(); } });
   },
   toggle() { this.open ? this.close() : this.show(); },
   show() {
-    if (!this.isAdmin()) return; this.open = true; try { Input.unlock(); } catch (e) { }
+    if (!this.isAdmin()) return; if (!this.has('self') && this.tab !== 'multi') this.tab = 'multi'; this.open = true; try { Input.unlock(); } catch (e) { }
     if (!this.root) { this.root = document.createElement('div'); this.root.id = 'adminpanel'; document.body.appendChild(this.root); }
     this.root.style.display = ''; this.render();
   },
@@ -55,10 +58,11 @@ export const Admin = {
   },
   // ---------- Panel ----------
   render() {
-    const tabs = [['player', '🧍 Spieler'], ['veh', '🚗 Fahrzeuge'], ['world', '🌍 Welt'], ['mission', '🎯 Missionen'], ['tp', '📍 Teleport'], ['multi', '🌐 Mehrspieler'], ['tools', '🛠 Werkzeuge']];
+    const all = [['player', '🧍 Ich'], ['veh', '🚗 Fahrzeuge'], ['world', '🌍 Welt'], ['mission', '🎯 Missionen'], ['tp', '📍 Teleport'], ['multi', '👥 Spieler'], ['tools', '🛠 Werkzeuge']];
+    const tabs = all.filter(([k]) => k === 'multi' || this.has('self'));
     this.root.innerHTML = '';
     const head = this.el('div', { className: 'ahead' }, [
-      this.el('b', { textContent: '🛡 Admin-Panel · ' + (Accounts.user ? Accounts.user.name : '') }), this.el('span', { className: 'ainfo' }),
+      this.el('b', { textContent: '🛡 Admin-Panel · ' + (Accounts.user ? Accounts.user.name : '') + (Accounts.user && Accounts.user.key === ADMIN ? ' · Haupt-Admin' : ' · Admin') }), this.el('span', { className: 'ainfo' }),
       this.button('✕', () => this.close(), 'x'),
     ]); this.info = head.querySelector('.ainfo');
     const bar = this.el('div', { className: 'atabs' }, tabs.map(([k, n]) => { const b = this.button(n, () => { this.tab = k; this.render(); }, k === this.tab ? 'on' : ''); return b; }));
@@ -190,21 +194,68 @@ export const Admin = {
     const draw = () => { list.innerHTML = ''; const s = q.value.trim().toLowerCase(); let n = 0; for (const o of city.pois) { const nm = o.name || o.type; if (s && !(String(nm).toLowerCase().includes(s) || String(o.type).includes(s))) continue; if (++n > 80) break; list.append(this.button(`${nm} · ${o.type}`, () => this.tp(o.x, o.z + 5), 'li')); } if (!n) list.append('Nichts gefunden.'); };
     q.addEventListener('input', draw); draw(); b.append(this.group('Orte (' + city.pois.length + ')', [q]), list);
   },
-  // ---------- Mehrspieler ----------
+  // ---------- Spielerverwaltung ----------
+  async send(c, to, args, ok, perm) {
+    if (!this.has(perm)) return this.say('Dafür fehlt dir das Recht „' + PERMS[perm] + '“');
+    if (!Multi.mq || !Multi.mq.connected) return this.say('Nicht mit dem Mehrspieler verbunden');
+    if (Sec.isOwnerName() && !Sec.ownerKeyOk()) return this.say('Dieses Gerät hat nicht den Admin-Schlüssel (Werkzeuge → Admin-Schlüssel importieren)');
+    await Sec.cmd(Multi.mq, Multi.base, c, to, args); this.say(ok);
+  },
   tab_multi(b) {
-    const st = this.el('div', { className: 'ameta', textContent: `Status: ${Multi.status} · ${Multi.remotes.size + 1} online` });
-    const list = this.el('div', { className: 'alist' });
+    const owner = Sec.isOwnerName(), me = this.pos(), nm = (r) => r.name.toLowerCase();
+    b.append(this.el('div', { className: 'ameta', textContent: `Status: ${Multi.status} · ${Multi.remotes.size + 1} online · Deine Rechte: ${owner ? 'Haupt-Admin (alle)' : Sec.myPerms().map((p) => PERMS[p]).join(', ') || 'keine'}` }));
+    if (owner && !Sec.ownerKeyOk()) b.append(this.el('div', { className: 'ameta warn', textContent: '⚠ Dieses Gerät hat nicht den Admin-Schlüssel des Haupt-Admins – Befehle werden von anderen nicht anerkannt. Unter „Werkzeuge → Admin-Schlüssel“ den Schlüssel von deinem anderen Gerät importieren.' }));
+    const amt = this.num('Betrag', '10000', 90), why = this.txt('Minuten', '60', 90);
+    b.append(this.group('Werte für die Knöpfe unten', [this.el('span', { className: 'ameta', textContent: 'Geld $' }), amt, this.el('span', { className: 'ameta', textContent: 'Bann Minuten' }), why]));
+    const list = this.el('div', { className: 'alist' }); list.style.maxHeight = 'none';
     for (const r of Multi.remotes.values()) {
-      const row = this.el('div', { className: 'arow' }, [this.el('b', { textContent: r.name }), this.el('span', { textContent: ` ${Math.round(Math.hypot(r.x - this.pos().x, r.z - this.pos().z))} m ` }),
-        this.button('Hin', () => this.tp(r.x + 2, r.z)), this.button(Multi.muted.has(r.name.toLowerCase()) ? 'Laut' : 'Stumm', () => { const k = r.name.toLowerCase(); Multi.muted.has(k) ? Multi.muted.delete(k) : Multi.muted.add(k); this.render(); })]);
-      list.append(row);
+      const adm = Sec.admins.find((x) => x.n.toLowerCase() === nm(r)), muted = Sec.mutes.has(nm(r));
+      const row = this.el('div', { className: 'aprow' }, [this.el('b', { textContent: r.name + (adm ? ' 🛡' : '') + (muted ? ' 🔇' : '') }), this.el('span', { className: 'ameta', textContent: ` ${Math.round(Math.hypot(r.x - me.x, r.z - me.z))} m` })]);
+      const btns = this.el('div', { className: 'ar' });
+      if (this.has('self')) btns.append(this.button('Hin', () => this.tp(r.x + 2, r.z)));
+      btns.append(this.button('Holen', () => this.send('bring', nm(r), { x: Math.round(me.x), z: Math.round(me.z) }, r.name + ' wird geholt', 'bring')),
+        this.button('Heilen', () => this.send('heal', nm(r), {}, r.name + ' geheilt', 'heal')),
+        this.button('Geld', () => this.send('give', nm(r), { amount: Math.round(+amt.value) || 0 }, '$' + (+amt.value || 0) + ' an ' + r.name, 'give')),
+        this.button(muted ? 'Laut' : 'Stumm', () => this.send(muted ? 'unmute' : 'mute', nm(r), {}, r.name + (muted ? ' darf wieder schreiben' : ' stummgeschaltet'), 'mute')),
+        this.button('Kick', () => this.send('kick', nm(r), {}, r.name + ' entfernt', 'kick'), 'warn'),
+        this.button('Bann', () => this.send('ban', nm(r), { min: Math.max(1, Math.round(+why.value) || 60), why: isNaN(+why.value) ? why.value : '' }, r.name + ' gebannt', 'ban'), 'warn'));
+      if (owner) btns.append(this.button(adm ? 'Admin entziehen' : '🛡 Admin machen', async () => {
+        if (!Sec.ownerKeyOk()) return this.say('Dieses Gerät hat nicht den Admin-Schlüssel'); if (!Multi.mq) return;
+        if (adm) { await Sec.revoke(Multi.mq, r.name); this.say(r.name + ' ist kein Admin mehr'); }
+        else if (!r.k) { this.say(r.name + ' hat noch keinen Schlüssel gesendet – kurz warten'); }
+        else { await Sec.grant(Multi.mq, r.name, r.k, ['self', 'kick', 'mute', 'announce', 'heal', 'bring']); this.say(r.name + ' ist jetzt Admin (Rechte unten einstellbar)'); }
+        this.render();
+      }));
+      row.append(btns); list.append(row);
     }
     if (!Multi.remotes.size) list.append('Kein anderer Spieler online.');
+    b.append(this.el('h4', { textContent: 'Online-Spieler' }), list);
+    // Namen direkt (auch Offline-Spieler)
+    const who = this.txt('Kontoname', '', 160);
+    b.append(this.group('Nach Kontoname', [who, this.button('Bannen', () => who.value && this.send('ban', who.value.toLowerCase(), { min: Math.max(1, Math.round(+why.value) || 60) }, who.value + ' gebannt', 'ban'), 'warn'), this.button('Entbannen', () => who.value && this.send('unban', who.value.toLowerCase(), {}, who.value + ' entbannt', 'ban')),
+      this.button('Stumm', () => who.value && this.send('mute', who.value.toLowerCase(), {}, who.value + ' stumm', 'mute')), this.button('Entstummen', () => who.value && this.send('unmute', who.value.toLowerCase(), {}, who.value + ' entstummt', 'mute'))]));
+    if (Sec.bans.size || Sec.mutes.size) {
+      const bl = this.el('div', { className: 'ar' });
+      for (const [n, v] of Sec.bans) if (v.until > Date.now()) bl.append(this.button('🚫 ' + n + ' (' + Math.ceil((v.until - Date.now()) / 60000) + ' Min.) aufheben', () => this.send('unban', n, {}, n + ' entbannt', 'ban'), 'warn'));
+      for (const n of Sec.mutes.keys()) bl.append(this.button('🔇 ' + n + ' aufheben', () => this.send('unmute', n, {}, n + ' entstummt', 'mute')));
+      b.append(this.group('Sperren (bekannt in dieser Sitzung)', [bl]));
+    }
     const ann = this.txt('Ansage an alle Spieler …', '', 280);
-    b.append(st, this.el('h4', { textContent: 'Spieler' }), list);
-    b.append(this.group('Ansage', [ann, this.button('Senden', () => { if (ann.value.trim()) { Multi.sendAnnounce(ann.value.trim()); ann.value = ''; } })]));
-    b.append(this.group('Verbindung', [this.button('Chat leeren', () => { if (Multi.chatEl) Multi.chatEl.log.innerHTML = ''; }), this.button('Neu verbinden', () => { const n = Accounts.user.name; Multi.stop(); setTimeout(() => Multi.start(n), 300); }), this.button('Mehrspieler aus', () => Multi.stop(), 'warn')]));
-    b.append(this.el('div', { className: 'ameta', textContent: 'Hinweis: Ohne eigenen Server gibt es keine verbindlichen Kick-/Bann-Funktionen; Ansagen und Stummschalten wirken nur bei Clients, die diese Version haben.' }));
+    b.append(this.group('Ansage', [ann, this.button('Senden', () => { if (ann.value.trim() && this.has('announce')) { Multi.sendAnnounce(ann.value.trim()); this.say('Ansage gesendet'); ann.value = ''; } else this.say('Kein Recht oder leer'); })]));
+    // Admin-Verwaltung (nur Haupt-Admin)
+    if (owner) {
+      const ad = this.el('div', { className: 'alist' }); ad.style.maxHeight = 'none';
+      for (const x of Sec.admins) {
+        const row = this.el('div', { className: 'aprow' }, [this.el('b', { textContent: '🛡 ' + x.n }), this.el('span', { className: 'ameta', textContent: ' Schlüssel ' + Sec.fingerprint(x.k) })]);
+        const pr = this.el('div', { className: 'ar' });
+        for (const p of Object.keys(PERMS)) pr.append(this.toggleBtn(PERMS[p], () => x.p.includes(p), (v) => { x.p = v ? [...new Set([...x.p, p])] : x.p.filter((q) => q !== p); Sec.publishAdmins(Multi.mq); }));
+        pr.append(this.button('Entfernen', async () => { await Sec.revoke(Multi.mq, x.n); this.say(x.n + ' entfernt'); this.render(); }, 'warn')); row.append(pr); ad.append(row);
+      }
+      if (!Sec.admins.length) ad.append('Noch keine weiteren Admins. Bei einem Online-Spieler „🛡 Admin machen“ drücken.');
+      b.append(this.el('h4', { textContent: 'Admins verwalten (nur Haupt-Admin)' }), ad);
+    }
+    b.append(this.group('Verbindung', [this.button('Chat leeren', () => { if (Multi.chatEl) Multi.chatEl.log.innerHTML = ''; }), this.button('Neu verbinden', () => { const n = Accounts.user.name; Multi.banned = false; Multi.stop(); setTimeout(() => Multi.start(n), 300); }), this.button('Mehrspieler aus', () => Multi.stop(), 'warn')]));
+    b.append(this.el('div', { className: 'ameta', textContent: 'Alle Befehle sind digital signiert; Spieler dieser Version erkennen gefälschte Befehle. Admin-Rechte kann nur der Haupt-Admin „Entity_2806“ vergeben. Wirksam sind Befehle nur bei Spielern, die gerade online sind (Bann/Stumm auch später beim Beitreten).' }));
   },
   // ---------- Werkzeuge ----------
   tab_tools(b) {
@@ -220,13 +271,22 @@ export const Admin = {
     const pr = window.__prof || {};
     b.append(this.el('div', { className: 'ameta', textContent: `Render: ${pr.calls ?? '?'} Aufrufe · ${Math.round((pr.tris || 0) / 1000)}k Dreiecke · Sim ${(pr.sim || 0).toFixed(1)} ms · Qualität ${G.settings.quality} · Fahrzeuge ${G.entities.vehicles.length} · Passanten ${G.entities.peds.length}` }));
     b.append(this.el('pre', { className: 'ameta', textContent: JSON.stringify(G.stats, null, 1) }));
+    if (Sec.isOwnerName()) {
+      const ka = this.el('textarea', { rows: 3, placeholder: 'Privater Admin-Schlüssel (nur für dich!) …' }); ka.style.width = '100%'; ka.addEventListener('keydown', (e) => e.stopPropagation());
+      b.append(this.group('Admin-Schlüssel (Fingerabdruck ' + Sec.fingerprint() + ')', [
+        this.button('Öffentlichen Schlüssel kopieren', () => { try { navigator.clipboard.writeText(Sec.pub); } catch (e) { } ka.value = Sec.pub; this.say('Öffentlicher Schlüssel: ' + Sec.pub.slice(0, 16) + '…'); }),
+        this.button('Privaten Schlüssel anzeigen (Backup)', () => { ka.value = Sec.exportKey(); this.say('Gut aufbewahren, niemandem zeigen'); }),
+        this.button('Schlüssel importieren', async () => { try { await Sec.importKey(ka.value); this.say('Schlüssel importiert'); this.render(); } catch (e) { this.say('Ungültig: ' + e.message); } }),
+        this.button('Als Haupt-Schlüssel veröffentlichen', async () => { if (confirm('Diesen Schlüssel als Haupt-Admin-Schlüssel veröffentlichen? Spieler, die einen anderen gemerkt haben, vertrauen ihm dann nicht mehr.')) { Sec.ownerPub = null; if (Multi.mq) await Sec.publishOwnerKey(Multi.mq); this.say('Veröffentlicht'); this.render(); } }, 'warn'),
+      ]), ka);
+    }
     b.append(this.group('Gefahrenzone', [this.button('Spielstand löschen', () => { if (confirm('Spielstand dieses Kontos wirklich löschen?')) { Save.wipe(); this.say('Gelöscht'); } }, 'warn'),
       this.button('Einstellungen zurücksetzen', () => { if (confirm('Einstellungen zurücksetzen und neu laden?')) { try { localStorage.removeItem('vicecity_settings_v1'); } catch (e) { } location.reload(); } }, 'warn')]));
   },
   // ---------- pro Bild ----------
   update(dt) {
     if (!this.btn) return; const C = G.cheat || {}, pl = G.player;
-    this.btn.style.display = IN_GAME.has(G.state) ? '' : 'none';
+    const adm = this.isAdmin(); this.btn.style.display = adm && IN_GAME.has(G.state) ? '' : 'none'; if (!adm && this.open) this.close();
     if (!IN_GAME.has(G.state) && this.open) this.close();
     if (C.freezeTime && C._hour != null) G.hour = C._hour;
     if (C.vgod && pl && pl.vehicle) { const v = pl.vehicle; v.hp = 1000; v.burning = 0; v.dead = false; }

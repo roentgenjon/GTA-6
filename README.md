@@ -39,7 +39,9 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 
 ## Admin-Panel
 
-Nur für das Konto **Entity_2806** (🛡-Knopf links bzw. F9): Gott-Modus, Fahrzeug unzerstörbar, unendlich Munition/Ausdauer, Schnellfeuer, Heilen, Geld setzen/addieren, Fahndung, alle Waffen, Lauftempo, Supersprung, Fliegen/Noclip, alle 128 Fahrzeuge spawnen/reparieren/umdrehen/Nitro, Uhrzeit/Zeitgeschwindigkeit/Zeit einfrieren, Wetter, Passanten spawnen/löschen, Explosionen, Missionen starten/abbrechen/abschließen, Teleport (Koordinaten, Orte, Wegpunkt), Mitspielerliste (hin teleportieren, stummschalten), Ansage an alle, Spielstand speichern/exportieren/importieren, Cheat-Konsole, Statistik. **Hinweis:** Die Prüfung läuft im Client (kein eigener Server); der Name „Entity_2806“ gehört demjenigen, der ihn zuerst registriert.
+Für den **Haupt-Admin Entity_2806** und von ihm ernannte Admins (🛡-Knopf links bzw. F9). Reiter: Ich (Gott-Modus, Geld, Fahndung, Waffen, Tempo, Fliegen …), Fahrzeuge (alle Modelle: antippen, dann SPAWN; Kategorien, Farbe, Mehrfach-Spawn), Welt (Zeit, Wetter, Passanten, Explosionen), Missionen, Teleport, **Spieler** (Holen, Heilen, Geld geben, Stummschalten, Kick, Bann, Ansagen, Admins ernennen/entziehen und Rechte einzeln einstellen) und Werkzeuge (Speichern/Import/Export, Cheat-Konsole, Admin-Schlüssel).
+
+**Sicherheit:** Befehle an andere Spieler (Kick/Bann/Stumm/Ansage/Holen/Heilen/Geld) und die Admin-Rechteliste sind mit ECDSA (P-256) signiert; Clients dieser Version ignorieren alles, was nicht vom Haupt-Admin-Schlüssel bzw. einem ernannten Admin stammt. Vertrauensanker ist der öffentliche Schlüssel des Haupt-Admins (`OWNER_PUB` in `src/adminsec.js`; solange er dort `null` ist, wird der zuerst veröffentlichte Schlüssel gemerkt). Den privaten Schlüssel (Werkzeuge → Admin-Schlüssel) sichern: ohne ihn lassen sich keine Admin-Befehle mehr senden. Grenze: Ein Spieler mit manipuliertem Client kann sein *eigenes* Spiel beliebig ändern; er kann aber keine Befehle an andere fälschen.
 
 ## Leistung auf Tablets
 
