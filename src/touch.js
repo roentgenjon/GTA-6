@@ -57,7 +57,7 @@ export const Touch = {
       const key = b.dataset.key, mouse = b.dataset.m, wheel = b.dataset.wheel, hold = b.dataset.hold, act = b.dataset.k;
       const down = (e) => {
         e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (_) { } b.classList.add('on');
-        if (key) { if (!Input.keys[key]) Input.pressed.add(key); Input.keys[key] = true; G.keys[key] = true; }
+        if (key) { Input.pressed.add(key); Input.keys[key] = true; G.keys[key] = true; }
         else if (mouse === 'fire') { Input.buttons |= 1; Input.pressed.add('Mouse0'); } else if (mouse === 'aim') { Input.buttons |= 4; Input.pressed.add('Mouse2'); }
         else if (wheel) Input.wheel += +wheel;
         else if (hold === 'sprint') { this.sprint = !this.sprint; b.classList.toggle('lock', this.sprint); }
@@ -65,7 +65,7 @@ export const Touch = {
         else if (act === 'fs') { const d = document.documentElement; const f = d.requestFullscreen || d.webkitRequestFullscreen; if (document.fullscreenElement || document.webkitFullscreenElement) (document.exitFullscreen || document.webkitExitFullscreen).call(document); else if (f) f.call(d); }
       };
       const up = (e) => { b.classList.remove('on'); if (key) { Input.keys[key] = false; G.keys[key] = false; } else if (mouse === 'fire') Input.buttons &= ~1; else if (mouse === 'aim') Input.buttons &= ~4; };
-      b.addEventListener('pointerdown', down); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('pointerleave', (e) => { if (e.buttons === 0) up(e); });
+      b.addEventListener('pointerdown', down); b.addEventListener('pointerup', up); b.addEventListener('pointercancel', up); b.addEventListener('lostpointercapture', up); b.addEventListener('pointerleave', (e) => { if (e.buttons === 0) up(e); });
     }
     window.addEventListener('pointerdown', (e) => { if (G.ui && G.state === 'cutscene' && G.ui.cutsceneActive) G.ui.advance(); });
     // Gesten-Zoom der Seite verhindern
@@ -94,6 +94,9 @@ export const Touch = {
       for (const [k, g] of Object.entries(this.groups)) g.classList.toggle('hidden', k === 'top' ? !play : k !== mode);
       // Eingaben zurücksetzen
       for (const k of ['KeyW', 'KeyS', 'KeyA', 'KeyD', 'ShiftLeft', 'Space']) { Input.keys[k] = false; G.keys[k] = false; }
+      // Beim Wechsel der Knopfgruppe (z. B. Einsteigen per F) verschwindet der gedrückte Knopf – sein Loslassen käme nie an: alle Tasten freigeben
+      for (const b of this.root.querySelectorAll('.tb')) { b.classList.remove('on'); const k = b.dataset.key; if (k) { Input.keys[k] = false; G.keys[k] = false; } }
+      Input.buttons &= ~5;
       Input.axisX = null; this.stick.x = this.stick.y = 0; this.knob && (this.knob.style.transform = '');
       if (mode === 'car') { /* Gas-/Bremstasten statt Stick-Y */ }
     }

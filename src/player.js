@@ -307,7 +307,7 @@ export class Player {
     // Fahrdistanz
     G.stats.vdist += Math.abs(v.speed) * dt;
     this.pos.copy(v.pos); this.yaw = v.yaw; this.speed = Math.abs(v.speed);
-    if (ctl && I.press('KeyF')) this.exitVehicle();
+    if (ctl && I.press('KeyF')) { I.pressed.delete('KeyF'); this.exitVehicle(); } // Druck verbrauchen, sonst steigt die Interaktionsabfrage im selben Bild sofort wieder ein
     if (ctl && I.press('KeyC')) { this.camMode = (this.camMode + 1) % 4; emit('toast', ['Kamera: Verfolger', 'Kamera: Nah', 'Kamera: Motorhaube', 'Kamera: Kino'][this.camMode]); }
     if (this.group.visible && this.group.parent === v.group) {
       const bike = v.kind === 'bike';
