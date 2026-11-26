@@ -82,7 +82,9 @@ export const Reflect = {
     if (this.ocean) { this.ocean.visible = false; }
     r.shadowMap.autoUpdate = false; r.xr.enabled = false;
     r.setRenderTarget(this.rt); r.clear();
+    if (this.pre) this.pre();
     r.render(scene, vc);
+    if (this.post) this.post();
     r.setRenderTarget(prevRT); r.shadowMap.autoUpdate = prevAuto; r.xr.enabled = prevXr;
     if (this.ocean) this.ocean.visible = true;
     for (const o of hidden) o.visible = true;

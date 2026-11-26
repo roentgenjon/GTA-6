@@ -76,7 +76,10 @@ export const Audio = {
   },
   // pro Frame
   update(dt) {
-    if (!this.ready) return; const c = this.ctx, t = c.currentTime, pl = G.player, w = G.weather;
+    if (!this.ready) return;
+    // Parameter nur 20× pro Sekunde setzen: jeder setTargetAtTime-Aufruf legt ein Automations-Ereignis an (12 Stück pro Bild belasten vor allem Safari)
+    this._ut = (this._ut || 0) - dt; if (this._ut > 0) return; this._ut = 0.05;
+    const c = this.ctx, t = c.currentTime, pl = G.player, w = G.weather;
     const v = pl && pl.vehicle;
     const active = G.state === 'play' || G.state === 'cutscene';
     // Regen/Wind

@@ -28,9 +28,9 @@ const SKY_VS = `varying vec3 vDir; void main(){ vDir = normalize(position); vec4
 const SKY_FS = `
 varying vec3 vDir;
 uniform vec3 uSun, uMoon, uZen, uHor, uSunCol; uniform float uNight, uCloud, uTime, uFlash, uRain;
-float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+float hash(vec2 p){ vec3 p3 = fract(vec3(p.xyx) * .1031); p3 += dot(p3, p3.yzx + 33.33); return fract((p3.x + p3.y) * p3.z); }
 float noise(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(hash(i),hash(i+vec2(1,0)),f.x), mix(hash(i+vec2(0,1)),hash(i+vec2(1,1)),f.x), f.y); }
-float fbm(vec2 p){ float a=.5,s=0.; for(int i=0;i<5;i++){ s+=a*noise(p); p*=2.07; a*=.5; } return s; }
+float fbm(vec2 p){ float a=.5,s=0.; for(int i=0;i<CLOUD_OCT;i++){ s+=a*noise(p); p*=2.07; a*=.5; } return s * (CLOUD_OCT == 3 ? 1.28 : 1.0); }
 void main(){
   vec3 d = normalize(vDir);
   float h = clamp(d.y, 0., 1.);
@@ -72,14 +72,15 @@ export class Sky {
       uZen: { value: new THREE.Color() }, uHor: { value: new THREE.Color() }, uSunCol: { value: new THREE.Color() },
       uNight: { value: 0 }, uCloud: { value: 0.2 }, uTime: { value: 0 }, uFlash: { value: 0 }, uRain: { value: 0 },
     };
-    const mat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, depthTest: false, fog: false });
+    const mat = new THREE.ShaderMaterial({ uniforms: this.uniforms, vertexShader: SKY_VS, fragmentShader: SKY_FS, side: THREE.BackSide, depthWrite: false, depthTest: true, fog: false, defines: { CLOUD_OCT: G.quality && G.quality.lite ? 3 : 5 } });
     this.mesh = new THREE.Mesh(new THREE.SphereGeometry(1, 40, 24), mat);
-    this.mesh.frustumCulled = false; this.mesh.renderOrder = -10; this.mesh.scale.setScalar(3000);
+    this.mesh.frustumCulled = false; this.mesh.renderOrder = 100; this.mesh.scale.setScalar(3000); // zuletzt zeichnen (nur noch freie Pixel, spart den Wolken-Shader hinter Gebäuden/Gelände)
     scene.add(this.mesh);
     // Kopie für Umgebungs-Reflexion
     this.envScene = new THREE.Scene();
     this.envMesh = new THREE.Mesh(this.mesh.geometry, mat); this.envMesh.scale.setScalar(50); this.envMesh.frustumCulled = false;
     this.envScene.add(this.envMesh);
+    this.lite = !!(G.quality && G.quality.lite);
     this.pmrem = new THREE.PMREMGenerator(renderer);
     this.envRT = null; this.envTimer = 99;
 
@@ -140,7 +141,7 @@ export class Sky {
     this.sun.target.updateMatrixWorld();
     if (this.csm) { const d = dir.clone(); if (d.y < 0.09) { d.y = 0.09; d.normalize(); } this.csm.lightDirection.copy(d).negate(); for (const l of this.csm.lights) { l.color.copy(this.sun.color); l.intensity = this.sun.intensity; } }
     this.hemi.color.setHex(k.hs); this.hemi.groundColor.setHex(k.hg);
-    this.hemi.intensity = k.hi * (1 - cloud * 0.1) * 0.9 + fl * 1.2;
+    this.hemi.intensity = k.hi * (1 - cloud * 0.1) * 0.9 * (this.lite ? 1.7 : 1) + fl * 1.2; // lite: Umgebungslicht ersetzt das weggelassene IBL der rauen Flächen
     // Nebel
     const hor = new THREE.Color(this.uniforms.uHor.value);
     const fogD = 0.00026 + w.fog * 0.0042 + rain * 0.0007 + cloud * 0.00006;
@@ -149,12 +150,12 @@ export class Sky {
     this.mesh.position.copy(camPos);
     // Umgebung aktualisieren
     this.envTimer += dt;
-    if (this.envTimer > 4) { this.envTimer = 0; this.updateEnv(); }
+    if (this.envTimer > (this.lite ? 14 : 4)) { this.envTimer = 0; this.updateEnv(); }
     this.scene.environmentIntensity = clamp(0.25 + (1 - night) * 0.55 + night * 0.18, 0, 1) * (1 - 0.2 * rain);
     return k;
   }
   updateEnv() {
-    const rt = this.pmrem.fromScene(this.envScene, 0, 0.1, 100);
+    const rt = this.pmrem.fromScene(this.envScene, 0, 0.1, 100, { size: this.lite ? 128 : 256 });
     if (this.envRT) this.envRT.dispose();
     this.envRT = rt; this.scene.environment = rt.texture;
   }

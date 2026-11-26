@@ -91,8 +91,8 @@ export function buildBody(look, level = 2) {
   const top = rgb(look.topColor), bottom = rgb(look.bottomColor), shoe = rgb(look.shoeColor), shirt = rgb(look.shirt || 0xffffff), tie = rgb(look.tieColor || 0xb0123f);
   const hairC = rgb(look.hairColor), eyeC = rgb(look.eye || 0x3f2c1c), hatC = rgb(look.hatColor != null ? look.hatColor : look.topColor);
   const T = look.top, B = look.bottom, S = look.shoe;
-  const SEG = far ? 10 : lite ? 12 : 22, SEGL = far ? 6 : lite ? 7 : 10, SEGH = far ? 10 : lite ? 12 : 20;
-  const thin = (arr, keep) => (lite ? arr.filter((v, i) => i === 0 || i === arr.length - 1 || keep(v) || i % (far ? 3 : 2) === 0) : arr);
+  const SEG = far ? 8 : lite ? 12 : 22, SEGL = far ? 5 : lite ? 7 : 10, SEGH = far ? 8 : lite ? 12 : 20;
+  const thin = (arr, keep) => (lite ? arr.filter((v, i) => i === 0 || i === arr.length - 1 || keep(v) || i % (far ? 5 : 2) === 0) : arr);
   const shadeNoise = (k, y) => 0.94 + 0.12 * hash(k, Math.round(y * 200), 7);
   const sleeveLen = { 0: 1.31, 3: 9, 6: 1.30 }; // Kurzarm: Ärmelende (y); 9 = kein Ärmel
   const longSleeve = T === 1 || T === 2 || T === 4 || T === 5;

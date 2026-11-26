@@ -1,13 +1,14 @@
 // Prozedurale Texturen (Canvas)
 import * as THREE from 'three';
 import { mulberry32 } from './util.js';
+import { G } from './game.js';
 
 function cv(w, h) { const c = document.createElement('canvas'); c.width = w; c.height = h; return [c, c.getContext('2d')]; }
 function tex(c, srgb = true, rep = true) {
   const t = new THREE.CanvasTexture(c);
   if (rep) t.wrapS = t.wrapT = THREE.RepeatWrapping;
   if (srgb) t.colorSpace = THREE.SRGBColorSpace;
-  t.anisotropy = 8; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.anisotropy = G.quality && G.quality.lite ? 2 : 8; t.generateMipmaps = true; t.minFilter = THREE.LinearMipmapLinearFilter;
   return t;
 }
 function noiseFill(ctx, w, h, base, amt, r) {

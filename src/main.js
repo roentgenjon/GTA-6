@@ -34,9 +34,25 @@ import { BY_ID, CATALOG } from './catalog.js';
 import { clamp, rr, fmtMoney, lerp } from './util.js';
 import { WEAPON_ORDER, WEAPONS } from './weapons.js';
 
+// Schatten-Filter: three.js r170 nimmt bei PCF 17 Texturzugriffe pro Pixel und Kaskade – auf Tablets reichen 4
+// Materialien mit #define NO_IBL überspringen die Umgebungs-Cube-Map-Abfragen
+function patchNoIBL() {
+  const c = THREE.ShaderChunk; if (c.lights_fragment_maps.includes('NO_IBL')) return;
+  c.lights_fragment_maps = c.lights_fragment_maps.split('defined( USE_ENVMAP )').join('defined( USE_ENVMAP ) && !defined( NO_IBL )');
+}
+function patchShadowPCF() {
+  const c = THREE.ShaderChunk, a = c.shadowmap_pars_fragment.indexOf('#if defined( SHADOWMAP_TYPE_PCF )'), b = c.shadowmap_pars_fragment.indexOf('#elif defined( SHADOWMAP_TYPE_PCF_SOFT )');
+  if (a < 0 || b < a) return;
+  const quick = `#if defined( SHADOWMAP_TYPE_PCF )
+			vec2 qs = shadowRadius * 0.5 / shadowMapSize;
+			shadow = ( texture2DCompare( shadowMap, shadowCoord.xy + vec2( -qs.x, -qs.y ), shadowCoord.z ) + texture2DCompare( shadowMap, shadowCoord.xy + vec2( qs.x, -qs.y ), shadowCoord.z ) + texture2DCompare( shadowMap, shadowCoord.xy + vec2( -qs.x, qs.y ), shadowCoord.z ) + texture2DCompare( shadowMap, shadowCoord.xy + vec2( qs.x, qs.y ), shadowCoord.z ) ) * 0.25;
+		`;
+  c.shadowmap_pars_fragment = c.shadowmap_pars_fragment.slice(0, a) + quick + c.shadowmap_pars_fragment.slice(b);
+}
+
 const QUALITY = {
-  low: { pr: 1, shadow: 1024, bloom: false, traffic: 12, peds: 22, parked: 8, seg: 192, oceanSeg: 140, csm: null, refl: null, rays: 0, lite: true, treeShadows: false, cull: { tree: 260, prop: 300, far: 700 } },
-  medium: { pr: 1.1, shadow: 1024, bloom: false, traffic: 18, peds: 32, parked: 14, seg: 288, oceanSeg: 200, csm: { n: 2, size: 1024, far: 260 }, refl: { scale: 0.3, roads: false, every: 3 }, rays: 12, lite: true, treeShadows: false, cull: { tree: 420, prop: 450, far: 1100 } },
+  low: { pr: 0.85, shadow: 1024, bloom: false, traffic: 12, peds: 22, parked: 8, seg: 192, oceanSeg: 140, csm: null, refl: null, rays: 0, lite: true, treeShadows: false, cull: { tree: 260, prop: 300, far: 700 } },
+  medium: { pr: 1, shadow: 1024, bloom: false, traffic: 16, peds: 28, parked: 12, seg: 288, oceanSeg: 200, csm: { n: 1, size: 2048, far: 150 }, refl: null, rays: 0, lite: true, treeShadows: false, cull: { tree: 420, prop: 450, far: 1100 } },
   high: { pr: 1.5, shadow: 2048, bloom: true, traffic: 30, peds: 55, parked: 26, seg: 448, oceanSeg: 300, csm: { n: 3, size: 2048, far: 650 }, refl: { scale: 0.5, roads: true, every: 1 }, rays: 26, lite: false, treeShadows: true, cull: { tree: 700, prop: 700, far: 1700 } },
   ultra: { pr: 2, shadow: 4096, bloom: true, traffic: 40, peds: 70, parked: 34, seg: 512, oceanSeg: 360, csm: { n: 4, size: 2048, far: 1100 }, refl: { scale: 0.75, roads: true, every: 1 }, rays: 40, lite: false, treeShadows: true, cull: { tree: 1100, prop: 1000, far: 2800 } },
 };
@@ -81,14 +97,30 @@ const SunShader = {
   }`,
 };
 const CineShader = {
-  uniforms: { tDiffuse: { value: null }, uBlur: { value: 0 }, uVig: { value: 0.4 }, uTime: { value: 0 }, uAspect: { value: 1 }, uWet: { value: 0 }, uCA: { value: 1 } },
+  uniforms: { tDiffuse: { value: null }, uBlur: { value: 0 }, uVig: { value: 0.4 }, uTime: { value: 0 }, uAspect: { value: 1 }, uWet: { value: 0 }, uCA: { value: 1 }, uAA: { value: 0 }, uTexel: { value: new THREE.Vector2(1 / 1024, 1 / 768) } },
   vertexShader: 'varying vec2 vUv; void main(){ vUv=uv; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }',
-  fragmentShader: `uniform sampler2D tDiffuse; uniform float uBlur,uVig,uTime,uAspect,uWet,uCA; varying vec2 vUv;
+  fragmentShader: `uniform sampler2D tDiffuse; uniform float uBlur,uVig,uTime,uAspect,uWet,uCA,uAA; uniform vec2 uTexel; varying vec2 vUv;
   float hash(vec2 p){ return fract(sin(dot(p,vec2(12.9898,78.233)))*43758.5453); }
+  vec3 fxaa(vec2 uv){
+    vec3 cM = texture2D(tDiffuse, uv).rgb;
+    vec3 cNW = texture2D(tDiffuse, uv + vec2(-1.0,-1.0)*uTexel).rgb, cNE = texture2D(tDiffuse, uv + vec2(1.0,-1.0)*uTexel).rgb;
+    vec3 cSW = texture2D(tDiffuse, uv + vec2(-1.0,1.0)*uTexel).rgb, cSE = texture2D(tDiffuse, uv + vec2(1.0,1.0)*uTexel).rgb;
+    const vec3 L = vec3(0.299,0.587,0.114);
+    float lNW=dot(cNW,L), lNE=dot(cNE,L), lSW=dot(cSW,L), lSE=dot(cSE,L), lM=dot(cM,L);
+    float lMin=min(lM,min(min(lNW,lNE),min(lSW,lSE))), lMax=max(lM,max(max(lNW,lNE),max(lSW,lSE)));
+    if (lMax - lMin < max(0.03, lMax * 0.1)) return cM;
+    vec2 dir = vec2(-((lNW+lNE)-(lSW+lSE)), ((lNW+lSW)-(lNE+lSE)));
+    float red = max((lNW+lNE+lSW+lSE)*0.03125, 0.0078125);
+    dir = clamp(dir / (min(abs(dir.x),abs(dir.y)) + red), vec2(-6.0), vec2(6.0)) * uTexel;
+    vec3 a = 0.5*(texture2D(tDiffuse, uv+dir*(1.0/3.0-0.5)).rgb + texture2D(tDiffuse, uv+dir*(2.0/3.0-0.5)).rgb);
+    vec3 b = a*0.5 + 0.25*(texture2D(tDiffuse, uv+dir*-0.5).rgb + texture2D(tDiffuse, uv+dir*0.5).rgb);
+    float lB = dot(b,L);
+    return (lB < lMin || lB > lMax) ? a : b;
+  }
   void main(){ vec2 d = vUv-0.5; float r = length(d*vec2(uAspect,1.0));
     vec3 col;
     if (uBlur > 0.004) { col = vec3(0.0); const int N=8; for(int i=0;i<N;i++){ float t=float(i)/float(N); col += texture2D(tDiffuse, vUv - d*uBlur*t*0.14).rgb; } col/=float(N); }
-    else col = texture2D(tDiffuse, vUv).rgb;
+    else col = uAA > 0.5 ? fxaa(vUv) : texture2D(tDiffuse, vUv).rgb;
     if (uCA > 0.5) { float ca = 0.0012 + uBlur*0.0015; col.r = mix(col.r, texture2D(tDiffuse, vUv - d*ca*2.0).r, 0.6); col.b = mix(col.b, texture2D(tDiffuse, vUv + d*ca*2.0).b, 0.6); }
     float l = dot(col, vec3(0.299,0.587,0.114)); col = mix(vec3(l), col, 1.08);
     col = mix(col, col*vec3(1.04,1.0,0.95), 0.4);
@@ -104,11 +136,12 @@ async function boot() {
   Save.loadSettings();
   if (!hadSettings && Touch.isTouchDevice()) { G.settings.quality = 'medium'; G.settings.traffic = 0.8; G.settings.bloom = false; }
   G.quality = QUALITY[G.settings.quality] || QUALITY.high;
+  if (G.quality.lite) { patchShadowPCF(); patchNoIBL(); }
   UI.setLoading(0.05, 'Renderer wird gestartet …');
   const canvas = document.getElementById('game');
   renderer = new THREE.WebGLRenderer({ canvas, antialias: false, powerPreference: 'high-performance' });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, G.quality.pr)); renderer.setSize(innerWidth, innerHeight); renderer.info.autoReset = false; window.__R = renderer;
-  renderer.shadowMap.enabled = G.settings.shadows; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.shadowMap.enabled = G.settings.shadows; renderer.shadowMap.type = G.quality.lite ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
   renderer.toneMapping = THREE.ACESFilmicToneMapping; renderer.outputColorSpace = THREE.SRGBColorSpace;
   scene = new THREE.Scene(); camera = new THREE.PerspectiveCamera(G.settings.fov, innerWidth / innerHeight, 0.4, 7000);
   G.scene = scene; G.camera = camera; G.renderer = renderer; G.weather = new Weather(); G.hour = 17.2; G.weather.set('clear', true); G.terrainY = TR.groundHeight;
@@ -121,15 +154,17 @@ async function boot() {
   FX.init(scene); Markers.init(scene); Peds.init(); rain = new Rain(scene);
   defineMissions();
   // Lampenlicht
-  for (let i = 0; i < 6; i++) { const l = new THREE.PointLight(0xffd9a0, 0, 34, 2); scene.add(l); lampLights.push(l); }
-  headSpot = new THREE.SpotLight(0xfff0d0, 0, 90, 0.5, 0.6, 1.2); scene.add(headSpot); scene.add(headSpot.target);
+  for (let i = 0; i < 4; i++) { const l = new THREE.PointLight(0xffd9a0, 0, 34, 2); l.visible = false; scene.add(l); lampLights.push(l); }
+  headSpot = new THREE.SpotLight(0xfff0d0, 0, 90, 0.5, 0.6, 1.2); headSpot.visible = false; scene.add(headSpot); scene.add(headSpot.target);
   await step(0.62, 'Schatten & Spiegelungen …');
   setupLighting();
   await step(0.7, 'Karte wird gezeichnet …');
   UI.buildMap();
   await step(0.9, 'Nachbearbeitung …');
   setupComposer();
-  try { camera.position.set(120, 60, -20); camera.updateMatrixWorld(); await Promise.race([renderer.compileAsync(scene, camera), new Promise((r) => setTimeout(r, 12000))]); } catch (e) { }
+  // Shader beider Licht-Varianten (Tag ohne Lampenlichter / Nacht mit) vorab übersetzen → später kein Ruckeln beim Wechsel
+  const precompile = async () => { try { camera.position.set(120, 60, -20); camera.updateMatrixWorld(); await Promise.race([renderer.compileAsync(scene, camera), new Promise((r) => setTimeout(r, 12000))]); } catch (e) { } };
+  setLampsVisible(true); await precompile(); setLampsVisible(false); await precompile();
   Input.init(canvas);
   Touch.init(UI);
   // Spieler Platzhalter (für Titelhintergrund)
@@ -169,6 +204,17 @@ function setupLighting() {
   if (q.refl && G.settings.reflections !== false) { Reflect.init(renderer, { enabled: true, ...q.refl }); Hooks.planar = Reflect.uniforms; }
   else Reflect.init(renderer, { enabled: false });
   Reflect.hide = [rain.mesh, Markers.group];
+  Reflect.pre = () => {
+    for (const c of cullList) if (c.mesh.visible) { c.mesh.visible = false; c._rh = 1; }
+    for (const p of G.entities.peds) if (p.group.visible) { p.group.visible = false; p._rh = 1; }
+    const cx = camera.position.x, cz = camera.position.z;
+    for (const v of G.entities.vehicles) if (v.group.visible && v.kind !== 'boat' && (v.pos.x - cx) ** 2 + (v.pos.z - cz) ** 2 > 90 * 90) { v.group.visible = false; v._rh = 1; }
+  };
+  Reflect.post = () => {
+    for (const c of cullList) if (c._rh) { c.mesh.visible = true; c._rh = 0; }
+    for (const p of G.entities.peds) if (p._rh) { p.group.visible = true; p._rh = 0; }
+    for (const v of G.entities.vehicles) if (v._rh) { v.group.visible = true; v._rh = 0; }
+  };
   hookObject(scene);
   const origAdd = scene.add.bind(scene);
   scene.add = function (...objs) { origAdd(...objs); for (const o of objs) hookObject(o); return this; };
@@ -193,7 +239,8 @@ function updateSunPass(dt) {
 function setupComposer() {
   if (composer) { try { composer.dispose && composer.dispose(); } catch (e) { } }
   const size = renderer.getSize(new THREE.Vector2()), pr = renderer.getPixelRatio();
-  const rt = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, { type: THREE.HalfFloatType, samples: G.quality.pr > 1 ? 4 : 2 });
+  const msaa = G.quality.lite ? 0 : (G.quality.pr > 1 ? 4 : 2);
+  const rt = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, { type: THREE.HalfFloatType, samples: msaa });
   composer = new EffectComposer(renderer, rt); composer.setPixelRatio(pr); composer.setSize(size.x, size.y);
   composer.addPass(new RenderPass(scene, camera));
   gtao = null;
@@ -201,29 +248,44 @@ function setupComposer() {
   bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.38, 0.65, 0.86); composer.addPass(bloom);
   sunPass = new ShaderPass(SunShader); sunPass.material.defines.SAMPLES = Math.max(6, G.quality.rays || 8); sunPass.enabled = !!G.quality.rays && G.settings.godrays !== false; composer.addPass(sunPass);
   outPass = new OutputPass(); composer.addPass(outPass);
-  cinePass = new ShaderPass(CineShader); cinePass.uniforms.uCA.value = (G.quality.lite || document.body.classList.contains('touch')) ? 0 : 1; composer.addPass(cinePass);
+  cinePass = new ShaderPass(CineShader); cinePass.uniforms.uCA.value = (G.quality.lite || document.body.classList.contains('touch')) ? 0 : 1; cinePass.uniforms.uAA.value = msaa ? 0 : 1; composer.addPass(cinePass); updateTexel();
 }
-// Automatische Leistungsanpassung (dynamische Auflösung, im Notfall eine Qualitätsstufe tiefer)
+function updateTexel() { if (!cinePass) return; const pr = renderer.getPixelRatio(); cinePass.uniforms.uTexel.value.set(1 / (innerWidth * pr), 1 / (innerHeight * pr)); cinePass.uniforms.uAspect.value = innerWidth / innerHeight; }
+// Automatische Leistungsanpassung: erst teure Effekte aus, dann Auflösung, im Notfall eine Qualitätsstufe tiefer
 const Gov = {
-  scale: 1, acc: 0, n: 0, age: 0, cool: 0, slow: 0, fast: 0, enabled: true,
+  scale: 1, acc: 0, n: 0, age: 0, cool: 0, slow: 0, fast: 0, enabled: true, shed: 0,
   base() { return Math.min(window.devicePixelRatio || 1, G.quality.pr); },
-  apply() { const pr = this.base() * this.scale; renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight); if (composer) { composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); } Reflect.resize(); if (csm) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; } window.__gscale = this.scale; },
+  apply() { const pr = this.base() * this.scale; renderer.setPixelRatio(pr); renderer.setSize(innerWidth, innerHeight); if (composer) { composer.setPixelRatio(pr); composer.setSize(innerWidth, innerHeight); } Reflect.resize(); updateTexel(); if (csm) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; } window.__gscale = this.scale; },
+  // Maßnahmen ohne Neuladen; liefert true, wenn etwas abgeschaltet wurde
+  shedOne() {
+    if (Reflect.enabled) { Reflect.enabled = false; Reflect.active = false; Reflect.uniforms.uOceanReflect.value = 0; Reflect.uniforms.uWetAmt.value = 0; this.shed = 1; return true; }
+    if (sunPass && G.quality.rays && G.settings.godrays !== false) { G.settings.godrays = false; sunPass.enabled = false; this.shed = 2; return true; }
+    if (bloom && G.settings.bloom) { G.settings.bloom = false; this.shed = 3; return true; }
+    return false;
+  },
   tick(dt) {
     if (!this.enabled || G.settings.autoTune === false || G.state !== 'play') { this.acc = 0; this.n = 0; return; }
-    this.age += dt; if (this.age < 6 || dt > 0.4) { this.acc = 0; this.n = 0; return; }
+    this.age += dt;
+    // Einzelne Aussetzer (Tab-Wechsel, Shader-Kompilierung) ignorieren – aber mehrere lahme Bilder in Folge sind echte Langsamkeit
+    if (dt > 0.4) this.hitch = (this.hitch || 0) + 1; else this.hitch = 0;
+    if (this.age < 5 || (dt > 0.4 && this.hitch < 3)) { this.acc = 0; this.n = 0; return; }
     this.acc += dt; this.n++; this.cool -= dt;
-    if (this.acc < 2.5) return;
+    if (this.acc < 2) return;
     const avg = this.acc / this.n; this.acc = 0; this.n = 0;
     window.__avgdt = avg;
-    if (avg > 1 / 38 && this.cool <= 0 && this.scale > 0.56) { this.scale = Math.max(0.55, this.scale - 0.15); this.cool = 3; this.fast = 0; this.apply(); }
-    else if (avg > 1 / 27 && this.scale <= 0.56) { if (++this.slow >= 2) this.tierDown(); }
-    else if (avg < 1 / 56 && this.scale < 1 && this.cool <= 0) { if (++this.fast >= 3) { this.scale = Math.min(1, this.scale + 0.08); this.fast = 0; this.cool = 4; this.apply(); } }
+    if (avg > 1 / 36 && this.cool <= 0) {
+      this.fast = 0;
+      if (this.shedOne()) { this.cool = 2; this.slow = 0; }
+      else if (this.scale > 0.6) { this.scale = Math.max(0.6, this.scale - 0.14); this.cool = 2; this.slow = 0; this.apply(); }
+      else if (avg > 1 / 30 && ++this.slow >= 2) this.tierDown();
+    }
+    else if (avg < 1 / 56 && this.scale < 1 && this.cool <= 0) { if (++this.fast >= 4) { this.scale = Math.min(1, this.scale + 0.07); this.fast = 0; this.cool = 5; this.apply(); } }
     else { this.slow = 0; }
   },
   tierDown() {
     const order = ['ultra', 'high', 'medium', 'low'], i = order.indexOf(G.settings.quality); this.slow = 0;
     let last = 0; try { last = +localStorage.getItem('vicecity_auto_v1') || 0; } catch (e) { }
-    if (i < 0 || i >= order.length - 1 || Date.now() - last < 90000) return;
+    if (i < 0 || i >= order.length - 1 || Date.now() - last < 45000) return;
     G.settings.quality = order[i + 1]; Save.saveSettings(); try { localStorage.setItem('vicecity_auto_v1', String(Date.now())); } catch (e) { }
     UI.toast('⚙ Leistung zu niedrig – Grafik wird auf „' + order[i + 1] + '" gesenkt, Seite lädt neu …');
     try { if (started) Save.save(); } catch (e) { }
@@ -238,7 +300,7 @@ function updateCull(dt) {
 }
 function onResize() {
   camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight);
-  if (composer) { composer.setSize(innerWidth, innerHeight); cinePass.uniforms.uAspect.value = innerWidth / innerHeight; }
+  if (composer) { composer.setSize(innerWidth, innerHeight); updateTexel(); }
   Reflect.resize(); if (csm) { csm.updateFrustums(); fixCSMBias(); lastFov = camera.fov; }
 }
 G.applySettings = (k) => {
@@ -391,8 +453,15 @@ function updateInteract(dt) {
 
 // ---------------- Lampenlichter ----------------
 let lampT = 0;
+// Nacht-Variante der Beleuchtung: Lampenlichter + Scheinwerfer sind nur dann in der Szene (jede Lichtquelle kostet in jedem Pixel Rechenzeit).
+// Beide Varianten werden beim Laden vorab kompiliert, der Wechsel verursacht also kein Ruckeln.
+let lampsVisible = false, lampSwitchT = 0;
+function setLampsVisible(v) { if (v === lampsVisible) return; lampsVisible = v; for (const l of lampLights) l.visible = v; if (headSpot) headSpot.visible = v; }
 function updateLampLights(dt) {
-  lampT -= dt; const n = G.night, ref = camera.position;
+  lampT -= dt; lampSwitchT -= dt; const n = G.night, ref = camera.position;
+  const inCar = !!G.player.vehicle, rainy = G.weather.rain;
+  if (n > 0.2 || (inCar && rainy > 0.45)) { if (!lampsVisible && lampSwitchT <= 0) { setLampsVisible(true); lampSwitchT = 3; } }
+  else if (lampsVisible && lampSwitchT <= 0 && n < 0.1 && !(inCar && rainy > 0.3)) { let m = headSpot ? headSpot.intensity : 0; for (const l of lampLights) m = Math.max(m, l.intensity); if (m < 0.6) { setLampsVisible(false); lampSwitchT = 3; } }
   if (lampT <= 0) {
     lampT = 0.4; const L = city.lamps; const best = [];
     if (n > 0.25 && ref.x > -1250 && ref.x < 1300 && ref.z > -1250 && ref.z < 1300) {
@@ -405,7 +474,7 @@ function updateLampLights(dt) {
   lampLights.forEach((pl) => { const t = pl._on ? n * 45 * rainDim : 0; pl.intensity = lerp(pl.intensity, t, Math.min(1, dt * 4)); });
   // Scheinwerfer des Spielerfahrzeugs
   const v = G.player.vehicle;
-  if (v && n > 0.2 || (v && G.weather.rain > 0.5)) { const s = Math.sin(v.yaw), c = Math.cos(v.yaw); headSpot.position.set(v.pos.x + s * v.halfL, v.pos.y + 0.8, v.pos.z + c * v.halfL); headSpot.target.position.set(v.pos.x + s * (v.halfL + 20), v.pos.y + 0.2, v.pos.z + c * (v.halfL + 20)); headSpot.intensity = (v.kind === 'plane' || v.kind === 'heli' ? 0 : 140 * Math.max(n, 0.4)); headSpot.visible = true; } else { headSpot.intensity = 0; }
+  if (v && n > 0.2 || (v && G.weather.rain > 0.5)) { const s = Math.sin(v.yaw), c = Math.cos(v.yaw); headSpot.position.set(v.pos.x + s * v.halfL, v.pos.y + 0.8, v.pos.z + c * v.halfL); headSpot.target.position.set(v.pos.x + s * (v.halfL + 20), v.pos.y + 0.2, v.pos.z + c * (v.halfL + 20)); headSpot.intensity = (v.kind === 'plane' || v.kind === 'heli' || !lampsVisible ? 0 : 140 * Math.max(n, 0.4)); } else { headSpot.intensity = 0; }
 }
 
 // ---------------- Hauptschleife ----------------
@@ -472,5 +541,6 @@ function loop(now) {
   window.__frame = (window.__frame || 0) + 1;
 }
 // Debug-Hooks
+window.__dbg = { get composer() { return composer; }, get csm() { return csm; }, get sunPass() { return sunPass; }, get cinePass() { return cinePass; }, get outPass() { return outPass; }, get bloom() { return bloom; }, get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, get sky() { return sky; }, get lamps() { return lampLights; }, get spot() { return headSpot; }, cullList, Reflect, updateSunPass, Gov, QUALITY, setupComposer };
 window.__G = G; window.__mods = { World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
 boot().catch((e) => { console.error(e); const t = document.querySelector('#loading .tip'); if (t) t.textContent = 'Fehler beim Start: ' + e.message; });

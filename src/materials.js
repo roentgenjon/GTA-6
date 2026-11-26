@@ -49,7 +49,8 @@ export function hookMaterial(mat) {
 export function hookObject(o) { o.traverse((c) => { if (c.material) { if (Array.isArray(c.material)) c.material.forEach(hookMaterial); else hookMaterial(c.material); } }); }
 export function initMaterials() {
   const fc = T.facadeTextures('curtain', 1), fo = T.facadeTextures('office', 2), fr = T.facadeTextures('resid', 3);
-  const fac = (t, rough, metal) => new THREE.MeshStandardMaterial({ map: t.map, bumpMap: t.bump, bumpScale: 2.2, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: rough, metalness: metal });
+  const lite = !!(G.quality && G.quality.lite);
+  const fac = (t, rough, metal) => new THREE.MeshStandardMaterial({ map: t.map, bumpMap: lite ? null : t.bump, bumpScale: 2.2, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: rough, metalness: metal });
   M.curtain = fac(fc, 0.18, 0.55);
   M.office = fac(fo, 0.6, 0.1);
   M.resid = fac(fr, 0.75, 0.0);
@@ -76,6 +77,10 @@ export function initMaterials() {
   M.glow = new THREE.PointsMaterial({ map: T.glowTexture(), size: 9, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xffd9a0, opacity: 0, sizeAttenuation: true, fog: false });
   M.tl = new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false });
   M.car = (color, rough = 0.28, metal = 0.7) => (G.quality && G.quality.lite ? new THREE.MeshStandardMaterial({ color, roughness: rough * 0.9, metalness: Math.min(0.85, metal + 0.1), vertexColors: true }) : new THREE.MeshPhysicalMaterial({ color, roughness: rough, metalness: metal, clearcoat: 1, clearcoatRoughness: 0.06, vertexColors: true }));
+  if (lite) { // raue Flächen ohne IBL (spart pro Pixel mehrere Cube-Map-Zugriffe); Autos, Glas und Chrom behalten die Himmelsspiegelung
+    M.curtain.metalness = 0.12;
+    for (const k of ['curtain', 'office', 'resid', 'flat', 'road', 'plain', 'slab', 'terrain', 'foliage', 'person', 'skin', 'rubber']) if (M[k]) M[k].defines = Object.assign(M[k].defines || {}, { NO_IBL: '' });
+  }
 }
 // Nacht-/Nässe-Update der Weltmaterialien
 export function updateMaterials(night, wet, rain) {

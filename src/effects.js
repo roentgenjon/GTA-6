@@ -53,16 +53,18 @@ export const FX = {
     // Mündungsfeuer + Tracer
     this.tracers = [];
     this.tracerMat = new THREE.LineBasicMaterial({ color: 0xffe9a0, transparent: true, opacity: 0.9, toneMapped: false });
-    this.muzzle = new THREE.PointLight(0xffc070, 0, 14, 2); scene.add(this.muzzle); this.muzzleT = 0;
-    this.explLight = new THREE.PointLight(0xff8a30, 0, 60, 2); scene.add(this.explLight); this.explT = 0;
+    // ein gemeinsames Blitzlicht für Mündungsfeuer und Explosionen (jede Lichtquelle kostet in jedem Pixel Rechenzeit)
+    this.fxLight = new THREE.PointLight(0xffc070, 0, 14, 2); scene.add(this.fxLight); this.muzzleT = 0; this.explT = 0;
     this.scene = scene; this.shake = 0;
   },
   update(dt, camera) {
     const scale = G.renderer ? G.renderer.domElement.height * 0.5 / Math.tan(camera.fov * Math.PI / 360) : 800;
     this.smoke.update(dt, scale); this.fire.update(dt, scale);
     this.shake = Math.max(0, this.shake - dt * 2.2);
-    this.muzzleT -= dt; this.muzzle.intensity = this.muzzleT > 0 ? 25 : 0;
-    this.explT -= dt; this.explLight.intensity = Math.max(0, this.explT) * 700;
+    this.muzzleT -= dt; this.explT -= dt; const L = this.fxLight;
+    if (this.explT > 0) { L.intensity = this.explT * 700; L.distance = 60; L.color.setHex(0xff8a30); }
+    else if (this.muzzleT > 0) { L.intensity = 25; L.distance = 14; L.color.setHex(0xffc070); }
+    else L.intensity = 0;
     for (let i = this.tracers.length - 1; i >= 0; i--) { const t = this.tracers[i]; t.life -= dt; if (t.life <= 0) { this.scene.remove(t.line); t.line.geometry.dispose(); this.tracers.splice(i, 1); } }
   },
   puffSmoke(x, y, z, amt = 1, dark = 0.3, rise = 2) {
@@ -76,7 +78,7 @@ export const FX = {
   explosion(x, y, z, power = 1) {
     for (let i = 0; i < 26 * power; i++) this.fire.emit(x + rr(-1, 1), y + rr(0, 1.5), z + rr(-1, 1), rr(-8, 8) * power, rr(1, 9) * power, rr(-8, 8) * power, rr(2.5, 6) * power, rr(-4, 1), rr(0.5, 1.1), 1, rr(0.4, 0.8), 0.15, 0.95);
     for (let i = 0; i < 30 * power; i++) this.smoke.emit(x + rr(-2, 2), y + rr(0, 2), z + rr(-2, 2), rr(-5, 5), rr(2, 8), rr(-5, 5), rr(3, 6), rr(2, 4), rr(2, 4.5), 0.12, 0.12, 0.12, 0.75);
-    this.explT = 0.35; this.explLight.position.set(x, y + 3, z); this.shake = Math.min(1.5, this.shake + 0.9 * power);
+    this.explT = 0.35; this.fxLight.position.set(x, y + 3, z); this.shake = Math.min(1.5, this.shake + 0.9 * power);
   },
   skid(id, x, z, y, yaw, intensity, width = 0.22) {
     const last = this.skidLast.get(id);
@@ -94,5 +96,5 @@ export const FX = {
     const g = new THREE.BufferGeometry().setFromPoints([a, b]);
     const line = new THREE.Line(g, this.tracerMat); line.frustumCulled = false; this.scene.add(line); this.tracers.push({ line, life: 0.05 });
   },
-  flash(pos) { this.muzzle.position.copy(pos); this.muzzleT = 0.05; },
+  flash(pos) { if (this.explT <= 0) this.fxLight.position.copy(pos); this.muzzleT = 0.05; },
 };

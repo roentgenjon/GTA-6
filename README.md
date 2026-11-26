@@ -30,6 +30,11 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 - **Lichtkegel:** volumetrische Scheinwerferstrahlen und Lichtflecken auf der Straße bei Nacht, Regen und Nebel.
 - Unter *Einstellungen* lassen sich Spiegelungen und Sonnenstrahlen einzeln abschalten; dort gibt es auch eine FPS-Anzeige und die automatische Leistungsanpassung (senkt bei niedriger Bildrate die Auflösung bzw. die Qualitätsstufe). Die Qualitätsstufe bestimmt Kaskaden, Schattenauflösung und Spiegelungs-Detail (Wechsel lädt die Seite neu).
 
+## Leistung auf Tablets
+
+- **Mittel** ist auf iPad/Tablets der Standard: ein Schattenkaskaden-Fenster (ca. 150 m) mit 4-Punkt-Filter, keine Spiegelungs-Zusatzrunde und keine Sonnenstrahlen, Kantenglättung per FXAA statt MSAA, Lampenlichter nur nachts (beide Licht-Varianten werden beim Laden vorab kompiliert), Himmel wird zuletzt gezeichnet (Wolken-Shader nur auf freien Pixeln). Spiegelungen und Sonnenstrahlen gibt es ab **Hoch**.
+- Die **automatische Leistungsanpassung** greift schon nach wenigen Sekunden ein: erst teure Effekte aus, dann Auflösung bis 60 %, im Notfall eine Qualitätsstufe tiefer (Seite lädt neu). Unter *Einstellungen → FPS anzeigen* sieht man Bildrate und Auflösungsfaktor.
+
 ## Glatte 3D-Modelle (kein Blockwerk)
 
 - **Figuren:** Spieler, Passanten, Polizisten & Co. sind weich gelofte Körper mit 11-Knochen-Skelett (Skinning): Torso mit Schultern/Taille/Hüfte, runde Arme und Beine, Hände, Schuhe (Sneaker, Stiefel, Lederschuhe, Flip-Flops), Gesicht mit Augen, Brauen, Nase, Lippen, Ohren, sieben Frisuren, Hüte, Brillen, Kleidung (T-Shirt, Hoodie, Hemd, Top, Anzug mit Krawatte, Lederjacke, Hawaiihemd, Rock) – alles mit Vertexfarben. Drei Detailstufen (voll / mittel / fern) halten die Bildrate hoch.
