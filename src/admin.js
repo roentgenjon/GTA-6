@@ -74,6 +74,7 @@ export const Admin = {
       this.toggleBtn('Gott-Modus', () => !!C.god, (v) => (C.god = v)),
       this.toggleBtn('Fahrzeug unzerstörbar', () => !!C.vgod, (v) => (C.vgod = v)),
       this.toggleBtn('Unendlich Munition', () => !!G.settings.infAmmo, (v) => { G.settings.infAmmo = v; Save.saveSettings(); }),
+      this.toggleBtn('Auto-Aim', () => G.settings.autoAim !== false, (v) => { G.settings.autoAim = v; Save.saveSettings(); }),
       this.toggleBtn('Unendlich Ausdauer', () => !!C.stamina, (v) => (C.stamina = v)),
       this.toggleBtn('Schnellfeuer (kein Nachladen)', () => !!C.rapid, (v) => (C.rapid = v)),
       this.toggleBtn('Nie gesucht', () => !!C.noWanted, (v) => { C.noWanted = v; if (v) Police.setLevel(0); }),

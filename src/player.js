@@ -167,9 +167,9 @@ export class Player {
     // Waffenwahl
     if (ctl && !this.vehicle) {
       if (I.wheel) this.cycleWeapon(I.wheel);
-      const keys = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7'];
-      const owned = WEAPON_ORDER;
-      keys.forEach((k, i) => { if (I.press(k)) { const id = owned[i]; if (id === 'fist' || prof.weapons[id]) this.setWeapon(id); } });
+      const keys = ['Digit1', 'Digit2', 'Digit3', 'Digit4', 'Digit5', 'Digit6', 'Digit7', 'Digit8', 'Digit9', 'Digit0'];
+      const owned = WEAPON_ORDER.filter((w) => w === 'fist' || prof.weapons[w]); // Ziffer = n-te besessene Waffe
+      keys.forEach((k, i) => { if (I.press(k) && owned[i]) this.setWeapon(owned[i]); });
     }
     this.group.position.copy(this.vehicle ? (this.group.parent === G.scene ? this.pos : this.group.position) : this.pos);
     // Wasserblasen etc.
@@ -269,6 +269,20 @@ export class Player {
     this.reloadT = w.reload || 1.4; if (G.audio) G.audio.play('reload');
   }
   finishReload() { const w = this.weapon, wd = this.wdata; if (!wd) return; const need = w.mag - wd.mag, take = Math.min(need, wd.ammo); wd.mag += take; wd.ammo -= take; }
+  autoTarget(w, cam) {
+    const fwd = new THREE.Vector3(); cam.getWorldDirection(fwd); const o = cam.position, cone = Math.cos((this.aiming ? 34 : 26) * Math.PI / 180), long = w.range > 130;
+    let best = null, bs = -1e9;
+    for (const p of G.entities.peds) {
+      if (p.dead || p.role === 'civ') continue; // nur Gegner (Polizei, Gangster, Missionsgegner), keine Passanten
+      const hy = p.pos.y + (long ? 1.5 : 1.2), dx = p.pos.x - o.x, dy = hy - o.y, dz = p.pos.z - o.z, d = Math.hypot(dx, dy, dz);
+      if (d > w.range * 0.92 || d < 1.5) continue;
+      const c = (dx * fwd.x + dy * fwd.y + dz * fwd.z) / d; if (c < cone) continue;
+      const sc = c * 10 - d * 0.01; if (sc <= bs) continue;
+      const h = Combat.castRay(o.x, o.y, o.z, dx / d, dy / d, dz / d, d + 0.5, this, null);
+      if ((h.type === 'ped' && h.ped === p) || h.t >= d - 0.7) { bs = sc; best = new THREE.Vector3(p.pos.x, hy, p.pos.z); }
+    }
+    return best;
+  }
   shoot() {
     const cam = G.camera, w = this.weapon;
     // Ziel: Strahl aus Kamera
@@ -278,6 +292,8 @@ export class Player {
     // Schnittpunkt Kamera-Strahl (um Waffe auszurichten)
     const hit = Combat.castRay(org.x, org.y, org.z, dir.x, dir.y, dir.z, range, this, null);
     const target = new THREE.Vector3(org.x + dir.x * Math.min(hit.t, range), org.y + dir.y * Math.min(hit.t, range), org.z + dir.z * Math.min(hit.t, range));
+    const at = G.settings.autoAim !== false ? this.autoTarget(w, cam) : null; // Zielhilfe: rastet auf Gegner im Blickfeld ein
+    if (at) target.copy(at);
     const muzzle = new THREE.Vector3(this.pos.x + Math.sin(this.yaw) * 0.6, this.pos.y + 1.4, this.pos.z + Math.cos(this.yaw) * 0.6);
     const d2 = target.clone().sub(muzzle).normalize();
     Combat.fire(this, muzzle, d2, w.id, target, muzzle);
@@ -384,7 +400,7 @@ export const CamCtl = {
       const k = aim ? 22 : 16;
       this.pos.x = damp(this.pos.x, tgtPos.x, k, dt); this.pos.y = damp(this.pos.y, tgtPos.y, k, dt); this.pos.z = damp(this.pos.z, tgtPos.z, k, dt);
       this.look.set(this.pos.x + Math.sin(cy) * Math.cos(cp) * 10, this.pos.y - Math.sin(cp) * 10, this.pos.z + Math.cos(cy) * Math.cos(cp) * 10);
-      fovT = aim ? set.fov - 18 : set.fov + (pl.sprinting ? 6 : 0);
+      fovT = aim ? set.fov - ((pl.weapon && pl.weapon.zoom) || 18) : set.fov + (pl.sprinting ? 6 : 0);
     }
     if (!this.init) { this.init = true; this.pos.copy(cam.position.lengthSq() ? tgtPos : tgtPos); }
     // Schütteln

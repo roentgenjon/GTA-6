@@ -50,6 +50,9 @@ export const Audio = {
     if (!this.ready) return; const v = this.pan(pos, 1);
     if (kind === 'pistol') { this.noise(0.18, 0.5 * v, 2400, 'lowpass'); this.tone(180, 0.12, 'square', 0.18 * v, -120); }
     else if (kind === 'smg') { this.noise(0.1, 0.4 * v, 3000, 'lowpass'); this.tone(240, 0.07, 'square', 0.12 * v, -150); }
+    else if (kind === 'heavy') { this.noise(0.3, 0.7 * v, 1800, 'lowpass'); this.tone(130, 0.2, 'square', 0.26 * v, -90); }
+    else if (kind === 'sniper') { this.noise(0.5, 0.8 * v, 1400, 'lowpass'); this.tone(90, 0.35, 'sawtooth', 0.3 * v, -60); }
+    else if (kind === 'rpg') { this.noise(0.7, 0.7 * v, 900, 'lowpass'); this.tone(70, 0.5, 'sawtooth', 0.3 * v, -40); }
     else if (kind === 'shotgun') { this.noise(0.35, 0.7 * v, 1500, 'lowpass'); this.tone(110, 0.25, 'sawtooth', 0.25 * v, -80); }
     else { this.noise(0.14, 0.5 * v, 3400, 'lowpass'); this.tone(200, 0.1, 'square', 0.15 * v, -140); }
   },

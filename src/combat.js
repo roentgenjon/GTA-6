@@ -75,7 +75,8 @@ export const Combat = {
       const hit = this.castRay(origin.x, origin.y, origin.z, _v.x, _v.y, _v.z, w.range, isPlayer ? null : shooter, null);
       const end = new THREE.Vector3(origin.x + _v.x * hit.t, origin.y + _v.y * hit.t, origin.z + _v.z * hit.t);
       FX.tracer(muzzle ? muzzle : origin, end);
-      const dmg = w.dmg * (isPlayer ? 1 : 0.55);
+      const dmg = w.explosive ? 5 : w.dmg * (isPlayer ? 1 : 0.55);
+      if (w.explosive) this.explode(end.x, end.y, end.z, w.blast || 9, w.dmg, shooter);
       if (hit.type === 'ped') { const head = hit.y > 1.55; hit.ped.hurt(dmg, shooter, head, { x: _v.x, z: _v.z }); if (isPlayer) emit('hitmarker', head); if (isPlayer && hit.ped.role === 'civ') emit('crime', 'shoot_ped', hit.ped.pos, hit.ped); }
       else if (hit.type === 'player') { G.player.damage(dmg, shooter.pos || origin); }
       else if (hit.type === 'veh') {
