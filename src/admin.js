@@ -44,7 +44,17 @@ export const Admin = {
   el(tag, props = {}, kids = []) { const e = document.createElement(tag); Object.assign(e, props); for (const k of [].concat(kids)) if (k != null) e.append(k.nodeType ? k : document.createTextNode(k)); return e; },
   button(label, fn, cls = '') { const b = this.el('button', { className: 'ab ' + cls, textContent: label }); b.addEventListener('click', () => { b.classList.add('flash'); setTimeout(() => b.classList.remove('flash'), 350); try { fn(b); } catch (e) { emit('toast', 'Fehler: ' + e.message); } this.refreshHdr(); }); return b; },
   toggleBtn(label, get, set) { const b = this.button('', () => { set(!get()); paint(); this.say(label + ': ' + (get() ? 'AN' : 'AUS')); }); const paint = () => { b.textContent = (get() ? '✅ ' : '⬜ ') + label; b.classList.toggle('on', !!get()); }; paint(); return b; },
-  group(title, kids) { return this.el('div', { className: 'ag' }, [this.el('h4', { textContent: title }), this.el('div', { className: 'ar' }, kids)]); },
+  // Einklappbare Karte: Kopfzeile antippen = auf/zu; die ersten beiden Karten eines Reiters sind anfangs offen, Suche klappt alles auf
+  group(title, kids) {
+    const key = (this.searching ? 's|' : '') + this.tab + '|' + title, idx = this._gi = (this._gi || 0) + 1;
+    if (!this.gstate) this.gstate = new Map(); if (!this.gstate.has(key)) this.gstate.set(key, idx <= 2 || /suchen/i.test(title));
+    const body = this.el('div', { className: 'ar' }, kids), n = [].concat(kids).filter((k) => k && k.classList && k.classList.contains('ab')).length;
+    const card = this.el('div', { className: 'ag' + (n > 9 ? ' wide' : '') });
+    const head = this.el('button', { className: 'agh', type: 'button' }, [this.el('span', { className: 'car' }), this.el('b', { textContent: title }), n ? this.el('span', { className: 'cnt', textContent: n }) : null]);
+    const paint = () => { const o = this.searching || this.gstate.get(key); card.classList.toggle('closed', !o); head.querySelector('.car').textContent = o ? '▾' : '▸'; };
+    head.addEventListener('click', () => { if (this.searching) return; this.gstate.set(key, !this.gstate.get(key)); paint(); });
+    card.append(head, body); paint(); return card;
+  },
   num(ph, val = '', w = 90) { const i = this.el('input', { type: 'text', inputMode: 'decimal', placeholder: ph, value: val }); i.style.width = w + 'px'; i.addEventListener('keydown', (e) => e.stopPropagation()); return i; },
   txt(ph, val = '', w = 200) { const i = this.el('input', { type: 'text', placeholder: ph, value: val }); i.style.width = w + 'px'; i.addEventListener('keydown', (e) => e.stopPropagation()); return i; },
   say(t) { emit('toast', '🛡 ' + t); this.lastStatus = t; this.paintStatus(true); },
@@ -63,13 +73,33 @@ export const Admin = {
     const tabs = all.filter(([k]) => k === 'multi' || need[k].some((p) => this.has(p)));
     if (!tabs.some(([k]) => k === this.tab)) this.tab = tabs[0][0];
     this.root.innerHTML = '';
+    const q = (this.q || '').trim().toLowerCase(); this.searching = !!q; this._gi = 0;
+    const search = this.el('input', { type: 'search', className: 'asearch', placeholder: '🔍 Funktion suchen (z. B. spawn, Wetter, Bann …)', value: this.q || '' });
+    search.addEventListener('keydown', (e) => e.stopPropagation()); search.addEventListener('keyup', (e) => e.stopPropagation());
+    search.addEventListener('input', () => { this.q = search.value; clearTimeout(this._st); this._st = setTimeout(() => { this.render(); const s = this.root.querySelector('.asearch'); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } }, 250); });
     const head = this.el('div', { className: 'ahead' }, [
-      this.el('b', { textContent: '🛡 Admin-Panel · ' + (Accounts.user ? Accounts.user.name : '') + (Accounts.user && Accounts.user.key === ADMIN ? ' · Haupt-Admin' : ' · Admin') }), this.el('span', { className: 'ainfo' }),
-      this.button('✕', () => this.close(), 'x'),
+      this.el('b', { textContent: '🛡 ' + (Accounts.user ? Accounts.user.name : '') + (Accounts.user && Accounts.user.key === ADMIN ? ' · Haupt-Admin' : ' · Admin') }), this.el('span', { className: 'ainfo' }),
+      this.button('⇕', () => { const open = ![...this.gstate.values()].some(Boolean); for (const k of this.gstate.keys()) this.gstate.set(k, open); this.render(); }, 'sm'), this.button('✕', () => this.close(), 'x'),
     ]); this.info = head.querySelector('.ainfo');
-    const bar = this.el('div', { className: 'atabs' }, tabs.map(([k, n]) => { const b = this.button(n, () => { this.tab = k; this.render(); }, k === this.tab ? 'on' : ''); return b; }));
-    const body = this.el('div', { className: 'abody' }); this['tab_' + this.tab](body);
-    this.statusEl = this.el('div', { className: 'astatus' }); this.root.append(head, bar, body, this.statusEl); this.paintStatus(false); this.refreshHdr();
+    const bar = this.el('div', { className: 'atabs' }, tabs.map(([k, n]) => { const b = this.button(n, () => { this.tab = k; this.q = ''; this.render(); }, k === this.tab && !q ? 'on' : ''); return b; }));
+    const body = this.el('div', { className: 'abody' });
+    if (!q) this['tab_' + this.tab](body);
+    else { // Suche über alle erlaubten Reiter
+      const keep = this.tab;
+      for (const [k, n] of tabs) { this.tab = k; const sec = this.el('div', { className: 'asec' }, [this.el('h3', { textContent: n })]); const inner = this.el('div', { className: 'abody inner' }); this['tab_' + k](inner); sec.append(inner); body.append(sec); }
+      this.tab = keep;
+      for (const sec of body.querySelectorAll('.asec')) {
+        let any = false;
+        for (const g of sec.querySelectorAll('.ag')) if (g.querySelector('.agh b').textContent.toLowerCase().includes(q)) g.dataset.hit = '1'; // Titel passt → ganze Karte zeigen
+        for (const e of sec.querySelectorAll('.ab')) { if (e.classList.contains('agh') || e.classList.contains('x')) continue; const hit = e.textContent.toLowerCase().includes(q) || !!(e.closest('.ag') && e.closest('.ag').dataset.hit); e.style.display = hit ? '' : 'none'; if (hit) any = true; }
+        for (const g of sec.querySelectorAll('.ag')) { const hasVis = [...g.querySelectorAll('.ab')].some((e) => e.style.display !== 'none') || g.querySelector('.agh b').textContent.toLowerCase().includes(q); g.style.display = hasVis ? '' : 'none'; }
+        for (const e of sec.querySelectorAll('.alist, .aopts, .ameta, h4, textarea, pre, .aspawn')) e.style.display = e.querySelector && e.querySelector('.ab') && [...e.querySelectorAll('.ab')].some((x) => x.style.display !== 'none') ? '' : 'none';
+        sec.style.display = any ? '' : 'none';
+      }
+      if (![...body.querySelectorAll('.asec')].some((s) => s.style.display !== 'none')) body.append(this.el('div', { className: 'ameta', textContent: 'Keine Funktion gefunden für „' + this.q + '“.' }));
+    }
+    for (const l of [...body.querySelectorAll('.abody > .alist'), ...body.querySelectorAll(':scope > .alist')]) { if (l.parentElement.classList.contains('alw')) continue; const w = this.el('div', { className: 'alw' }); l.replaceWith(w); w.append(l); } // Listen in Hülle: sonst rechnet das Raster ihre Höhe falsch
+    this.root.append(head, this.el('div', { className: 'asbar' }, [search]), bar, body); this.statusEl = this.el('div', { className: 'astatus' }); this.root.append(this.statusEl); this.paintStatus(false); this.refreshHdr();
   },
   refreshHdr() {
     if (!this.open || !this.info || !G.player) return; const pl = G.player, p = this.pos();

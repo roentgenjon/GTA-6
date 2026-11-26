@@ -238,3 +238,22 @@ body.touch #adminbtn { left: calc(40px + env(safe-area-inset-left)); bottom: cal
 
 #adminpanel .plist { max-height: 30vh; } #adminpanel .prow { display: flex; align-items: center; gap: 8px; } #adminpanel .dot { width: 10px; height: 10px; border-radius: 50%; background: #666; flex: 0 0 auto; } #adminpanel .dot.on { background: #35ffb4; }
 #adminpanel .aopts { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(60,30,120,.25); }
+
+/* ---- Admin-Panel: übersichtlicher (Karten, einklappbar, Suche) ---- */
+#adminpanel { width: min(900px, 97vw); font-size: 13px; }
+#adminpanel .ahead { padding: 8px 12px; } #adminpanel .asbar { padding: 8px 12px 0; }
+#adminpanel .asearch { width: 100%; box-sizing: border-box; background: #1c1236; color: #fff; border: 1px solid var(--line); border-radius: 10px; padding: 9px 12px; font-size: 15px; }
+#adminpanel .atabs { padding: 8px 10px; } #adminpanel .atabs .ab { padding: 8px 12px; min-height: 36px; }
+#adminpanel .ab { padding: 7px 10px; min-height: 34px; font-size: 13px; } #adminpanel .ab.sm { padding: 6px 10px; min-height: 34px; }
+#adminpanel .abody { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 10px; align-items: start; padding: 10px 12px 14px; }
+#adminpanel .abody > .alist, #adminpanel .abody > h4, #adminpanel .abody > .ameta, #adminpanel .abody > .aspawn, #adminpanel .abody > .aopts, #adminpanel .abody > textarea, #adminpanel .abody > pre, #adminpanel .abody > .ag.wide, #adminpanel .abody > .asec { grid-column: 1 / -1; }
+#adminpanel .ag { margin: 0; border: 1px solid var(--line); border-radius: 12px; background: rgba(60,30,120,.18); overflow: hidden; }
+#adminpanel .agh { display: flex; align-items: center; gap: 8px; width: 100%; background: rgba(120,70,255,.18); color: #fff; border: 0; padding: 10px 12px; font-size: 13px; text-align: left; cursor: pointer; min-height: 40px; }
+#adminpanel .agh b { flex: 1; letter-spacing: .06em; text-transform: uppercase; font-size: 12px; color: #ff9be0; } #adminpanel .agh .car { width: 14px; color: var(--cyan); } #adminpanel .agh .cnt { background: rgba(255,255,255,.14); border-radius: 10px; padding: 1px 8px; font-size: 11px; }
+#adminpanel .ag .ar { padding: 10px; } #adminpanel .ag.closed .ar { display: none; }
+#adminpanel .asec h3 { margin: 6px 0 8px; font-size: 14px; color: var(--cyan); } #adminpanel .abody.inner { padding: 0; }
+@media (max-width: 700px) { #adminpanel .abody { grid-template-columns: 1fr; } }
+
+#adminpanel .abody > .alw { grid-column: 1 / -1; }
+#adminpanel .abody { align-content: start; grid-auto-rows: max-content; }
+#adminpanel .ag { overflow: visible; } #adminpanel .agh { border-radius: 11px 11px 0 0; } #adminpanel .ag.closed .agh { border-radius: 11px; }
