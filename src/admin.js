@@ -2,7 +2,7 @@
 import { G, emit } from './game.js';
 import { Accounts } from './accounts.js';
 import { Multi } from './multi.js';
-import { Sec, PERMS, OWNER } from './adminsec.js';
+import { Sec, PERMS, OWNER, SELF_PERMS } from './adminsec.js';
 import { Input } from './player.js';
 import { Veh } from './vehicles.js';
 import { Peds } from './peds.js';
@@ -35,7 +35,7 @@ export const Admin = {
   },
   toggle() { this.open ? this.close() : this.show(); },
   show() {
-    if (!this.isAdmin()) return; if (!this.has('self') && this.tab !== 'multi') this.tab = 'multi'; this.open = true; try { Input.unlock(); } catch (e) { }
+    if (!this.isAdmin()) return; this.open = true; try { Input.unlock(); } catch (e) { }
     if (!this.root) { this.root = document.createElement('div'); this.root.id = 'adminpanel'; document.body.appendChild(this.root); }
     this.root.style.display = ''; this.render();
   },
@@ -59,7 +59,9 @@ export const Admin = {
   // ---------- Panel ----------
   render() {
     const all = [['player', '🧍 Ich'], ['veh', '🚗 Fahrzeuge'], ['world', '🌍 Welt'], ['mission', '🎯 Missionen'], ['tp', '📍 Teleport'], ['multi', '👥 Spieler'], ['tools', '🛠 Werkzeuge']];
-    const tabs = all.filter(([k]) => k === 'multi' || this.has('self'));
+    const need = { player: ['god', 'money', 'weap', 'wanted', 'move'], veh: ['veh'], world: ['world', 'chaos'], mission: ['mission'], tp: ['tp'], tools: ['tools'] };
+    const tabs = all.filter(([k]) => k === 'multi' || need[k].some((p) => this.has(p)));
+    if (!tabs.some(([k]) => k === this.tab)) this.tab = tabs[0][0];
     this.root.innerHTML = '';
     const head = this.el('div', { className: 'ahead' }, [
       this.el('b', { textContent: '🛡 Admin-Panel · ' + (Accounts.user ? Accounts.user.name : '') + (Accounts.user && Accounts.user.key === ADMIN ? ' · Haupt-Admin' : ' · Admin') }), this.el('span', { className: 'ainfo' }),
@@ -76,28 +78,26 @@ export const Admin = {
   // ---------- Spieler ----------
   tab_player(b) {
     const C = this.C(), pl = G.player, A = (...k) => b.append(...k);
-    A(this.group('Unverwundbarkeit & Ausdauer', [
-      this.toggleBtn('Gott-Modus', () => !!C.god, (v) => (C.god = v)),
-      this.toggleBtn('Fahrzeug unzerstörbar', () => !!C.vgod, (v) => (C.vgod = v)),
-      this.toggleBtn('Unendlich Munition', () => !!G.settings.infAmmo, (v) => { G.settings.infAmmo = v; Save.saveSettings(); }),
-      this.toggleBtn('Auto-Aim', () => G.settings.autoAim !== false, (v) => { G.settings.autoAim = v; Save.saveSettings(); }),
-      this.toggleBtn('Unendlich Ausdauer', () => !!C.stamina, (v) => (C.stamina = v)),
-      this.toggleBtn('Schnellfeuer (kein Nachladen)', () => !!C.rapid, (v) => (C.rapid = v)),
-      this.toggleBtn('Nie gesucht', () => !!C.noWanted, (v) => { C.noWanted = v; if (v) Police.setLevel(0); }),
+    const H = (p) => this.has(p);
+    A(this.group('Schalter', [
+      ...(H('god') ? [this.toggleBtn('Gott-Modus', () => !!C.god, (v) => (C.god = v)), this.toggleBtn('Fahrzeug unzerstörbar', () => !!C.vgod, (v) => (C.vgod = v))] : []),
+      ...(H('weap') ? [this.toggleBtn('Unendlich Munition', () => !!G.settings.infAmmo, (v) => { G.settings.infAmmo = v; Save.saveSettings(); }), this.toggleBtn('Auto-Aim', () => G.settings.autoAim !== false, (v) => { G.settings.autoAim = v; Save.saveSettings(); }), this.toggleBtn('Schnellfeuer (kein Nachladen)', () => !!C.rapid, (v) => (C.rapid = v))] : []),
+      ...(H('move') ? [this.toggleBtn('Unendlich Ausdauer', () => !!C.stamina, (v) => (C.stamina = v))] : []),
+      ...(H('wanted') ? [this.toggleBtn('Nie gesucht', () => !!C.noWanted, (v) => { C.noWanted = v; if (v) Police.setLevel(0); })] : []),
     ]));
-    A(this.group('Gesundheit', [
+    if (H('god')) A(this.group('Gesundheit', [
       this.button('Heilen', () => { pl.hp = pl.maxHp || 100; this.say('Geheilt'); }), this.button('Rüstung voll', () => { pl.armor = 100; }),
       this.button('Beides + Ausdauer', () => { pl.hp = pl.maxHp || 100; pl.armor = 100; pl.stamina = 1; }), this.button('Respawn', () => { pl.revive(); }), this.button('Selbstmord', () => pl.damage(9999, null), 'warn'),
     ]));
     const mi = this.num('Betrag', '1000000', 110);
-    A(this.group('Geld', [this.button('+10.000', () => Eco.earn(10000)), this.button('+1 Mio', () => Eco.earn(1e6)), this.button('+100 Mio', () => Eco.earn(1e8)), this.button('−10.000', () => { G.profile.money = Math.max(0, G.profile.money - 1e4); }),
+    if (H('money')) A(this.group('Geld', [this.button('+10.000', () => Eco.earn(10000)), this.button('+1 Mio', () => Eco.earn(1e6)), this.button('+100 Mio', () => Eco.earn(1e8)), this.button('−10.000', () => { G.profile.money = Math.max(0, G.profile.money - 1e4); }),
       mi, this.button('Setzen', () => { const n = +mi.value; if (Number.isFinite(n) && n >= 0) G.profile.money = Math.round(n); }), this.button('Addieren', () => { const n = +mi.value; if (Number.isFinite(n)) Eco.earn(Math.round(n)); })]));
-    A(this.group('Fahndung', [0, 1, 2, 3, 4, 5].map((l) => this.button(l ? '★'.repeat(l) : 'Aus', () => Police.setLevel(l)))));
-    A(this.group('Waffen', [this.button('Alle Waffen + Munition', () => this.say(G.cheatCode('WAFFEN'))), this.button('Waffen entfernen', () => { G.profile.weapons = {}; pl.setWeapon('fist'); }, 'warn')]));
-    A(this.group('Lauftempo', [1, 2, 4, 8, 16].map((s) => this.button('×' + s, () => { C.speed = s === 1 ? 0 : s; this.say('Tempo ×' + s); }, (C.speed || 1) === s ? 'on' : ''))));
-    A(this.group('Supersprung', [1, 2, 4, 8].map((s) => this.button('×' + s, () => { C.jump = s === 1 ? 0 : s; this.say('Sprung ×' + s); }, (C.jump || 1) === s ? 'on' : ''))));
-    A(this.group('Bewegung', [this.toggleBtn('Fliegen / Noclip (Leertaste hoch, Q runter, Shift schnell)', () => !!C.fly, (v) => { C.fly = v; }), this.button('Auf den Boden', () => { pl.teleport(pl.pos.x, pl.pos.z); })]));
-    A(this.group('Fähigkeiten', [this.button('Alle Fähigkeiten max', () => { for (const k of Object.keys(G.profile.skills)) G.profile.skills[k] = 1; this.say('Fähigkeiten auf Maximum'); })]));
+    if (H('wanted')) A(this.group('Fahndung', [0, 1, 2, 3, 4, 5].map((l) => this.button(l ? '★'.repeat(l) : 'Aus', () => Police.setLevel(l)))));
+    if (H('weap')) A(this.group('Waffen', [this.button('Alle Waffen + Munition', () => this.say(G.cheatCode('WAFFEN'))), this.button('Waffen entfernen', () => { G.profile.weapons = {}; pl.setWeapon('fist'); }, 'warn')]));
+    if (H('move')) A(this.group('Lauftempo', [1, 2, 4, 8, 16].map((s) => this.button('×' + s, () => { C.speed = s === 1 ? 0 : s; this.say('Tempo ×' + s); }, (C.speed || 1) === s ? 'on' : ''))));
+    if (H('move')) A(this.group('Supersprung', [1, 2, 4, 8].map((s) => this.button('×' + s, () => { C.jump = s === 1 ? 0 : s; this.say('Sprung ×' + s); }, (C.jump || 1) === s ? 'on' : ''))));
+    if (H('move')) A(this.group('Bewegung', [this.toggleBtn('Fliegen / Noclip (Leertaste hoch, Q runter, Shift schnell)', () => !!C.fly, (v) => { C.fly = v; }), this.button('Auf den Boden', () => { pl.teleport(pl.pos.x, pl.pos.z); })]));
+    if (H('god')) A(this.group('Fähigkeiten', [this.button('Alle Fähigkeiten max', () => { for (const k of Object.keys(G.profile.skills)) G.profile.skills[k] = 1; this.say('Fähigkeiten auf Maximum'); })]));
   },
   // ---------- Fahrzeuge ----------
   tab_veh(b) {
@@ -155,13 +155,14 @@ export const Admin = {
     ts.addEventListener('input', () => { G.settings.timeScale = +ts.value; tl.textContent = ts.value + '×'; Save.saveSettings(); });
     const tr = this.el('input', { type: 'range', min: 0, max: 3, step: 0.1, value: G.settings.traffic }), trl = this.el('span', { textContent: Math.round(G.settings.traffic * 100) + '%' });
     tr.addEventListener('input', () => { G.settings.traffic = +tr.value; trl.textContent = Math.round(tr.value * 100) + '%'; Save.saveSettings(); });
-    b.append(this.group('Uhrzeit', [hr, hl, this.button('Morgen', () => { G.hour = 7; }), this.button('Mittag', () => { G.hour = 12; }), this.button('Abend', () => { G.hour = 18.9; }), this.button('Nacht', () => { G.hour = 23; }),
+    const H = (p) => this.has(p);
+    if (H('world')) b.append(this.group('Uhrzeit', [hr, hl, this.button('Morgen', () => { G.hour = 7; }), this.button('Mittag', () => { G.hour = 12; }), this.button('Abend', () => { G.hour = 18.9; }), this.button('Nacht', () => { G.hour = 23; }),
       this.toggleBtn('Zeit einfrieren', () => !!C.freezeTime, (v) => { C.freezeTime = v; C._hour = G.hour; })]));
-    b.append(this.group('Zeitgeschwindigkeit', [ts, tl]));
-    b.append(this.group('Wetter', [...Object.entries(WEATHER_NAMES).map(([k, n]) => this.button(n, () => { G.weather.set(k, true); G.weather.forced = k; })), this.button('Automatisch', () => { G.weather.forced = null; })]));
-    b.append(this.group('Verkehrsdichte (Neuladen/Respawn wirkt)', [tr, trl]));
-    b.append(this.group('Passanten', [this.button('+10 spawnen', () => this.spawnPeds(10)), this.button('+40 spawnen', () => this.spawnPeds(40)), this.button('Alle löschen', () => { for (const p of [...Peds.list]) Peds.remove(p); this.say('Passanten entfernt'); }, 'warn')]));
-    b.append(this.group('Chaos', [
+    if (H('world')) b.append(this.group('Zeitgeschwindigkeit', [ts, tl]));
+    if (H('world')) b.append(this.group('Wetter', [...Object.entries(WEATHER_NAMES).map(([k, n]) => this.button(n, () => { G.weather.set(k, true); G.weather.forced = k; })), this.button('Automatisch', () => { G.weather.forced = null; })]));
+    if (H('world')) b.append(this.group('Verkehrsdichte (Neuladen/Respawn wirkt)', [tr, trl]));
+    if (H('chaos')) b.append(this.group('Passanten', [this.button('+10 spawnen', () => this.spawnPeds(10)), this.button('+40 spawnen', () => this.spawnPeds(40)), this.button('Alle löschen', () => { for (const p of [...Peds.list]) Peds.remove(p); this.say('Passanten entfernt'); }, 'warn')]));
+    if (H('chaos')) b.append(this.group('Chaos', [
       this.button('Explosion vor mir', () => { const a = this.ahead(10); Combat.explode(a.x, pl.pos.y + 1, a.z, 12, 300, null); }),
       this.button('Explosion bei mir', () => { Combat.explode(pl.pos.x, pl.pos.y + 1, pl.pos.z, 10, 150, null); }, 'warn'),
       this.button('Alle Passanten fliehen', () => { for (const p of Peds.list) { if (p.state !== undefined && p.role === 'civ') p.state = 'flee'; } }),
@@ -232,7 +233,7 @@ export const Admin = {
       const k = st.sel, r = en.r, adm = Sec.admins.find((x) => x.n.toLowerCase() === k), muted = Sec.mutes.has(k), banned = Sec.bans.has(k) && Sec.bans.get(k).until > Date.now();
       optBox.append(this.el('h4', { textContent: 'Optionen für ' + en.name }));
       const tele = [];
-      if (r && this.has('self')) tele.push(this.button('📍 Zu ihm hin', () => this.tp(r.x + 2, r.z)));
+      if (r && this.has('tp')) tele.push(this.button('📍 Zu ihm hin', () => this.tp(r.x + 2, r.z)));
       if (r) tele.push(this.button('🧲 Zu mir holen', () => this.send('bring', k, { x: Math.round(me.x), z: Math.round(me.z) }, en.name + ' wird geholt', 'bring')));
       if (tele.length) optBox.append(this.group('Teleport', tele));
       if (r) optBox.append(this.group('Helfen', [this.button('💚 Heilen', () => this.send('heal', k, {}, en.name + ' geheilt', 'heal')), amt, this.button('💰 Geld geben', () => this.send('give', k, { amount: Math.round(+amt.value) || 0 }, '$' + (+amt.value || 0) + ' an ' + en.name, 'give'))]));
@@ -246,12 +247,14 @@ export const Admin = {
         const rows = [];
         if (adm) {
           for (const p of Object.keys(PERMS)) rows.push(this.toggleBtn(PERMS[p], () => adm.p.includes(p), (v) => { adm.p = v ? [...new Set([...adm.p, p])] : adm.p.filter((q) => q !== p); Sec.publishAdmins(Multi.mq); }));
+          const preset = (n, list) => this.button(n, async () => { adm.p = [...list]; await Sec.publishAdmins(Multi.mq); this.say('Vorlage „' + n + '“ für ' + en.name); this.render(); });
+          rows.push(preset('Vorlage: Moderator', ['kick', 'mute', 'announce', 'heal', 'bring']), preset('Vorlage: Baumeister', ['veh', 'tp', 'world', 'chaos', 'mission']), preset('Vorlage: Alles', Object.keys(PERMS)), preset('Vorlage: Nichts', []));
           rows.push(this.button('❌ Admin entziehen', async () => { if (!Sec.ownerKeyOk()) return this.say('Dieses Gerät hat nicht den Admin-Schlüssel'); await Sec.revoke(Multi.mq, en.name); this.say(en.name + ' ist kein Admin mehr'); this.render(); }, 'warn'));
         } else rows.push(this.button('🛡 Zum Admin machen', async () => {
           if (!Sec.ownerKeyOk()) return this.say('Dieses Gerät hat nicht den Admin-Schlüssel');
           if (!r) return this.say('Der Spieler muss online sein');
           if (!r.k) return this.say(en.name + ' hat noch keinen Schlüssel gesendet – kurz warten');
-          await Sec.grant(Multi.mq, en.name, r.k, ['self', 'kick', 'mute', 'announce', 'heal', 'bring']); this.say(en.name + ' ist jetzt Admin – Rechte stellst du hier ein'); this.render();
+          await Sec.grant(Multi.mq, en.name, r.k, ['kick', 'mute', 'announce', 'heal', 'bring']); this.say(en.name + ' ist jetzt Admin – Rechte stellst du hier ein (Standard: nur Moderation)'); this.render();
         }, 'on'));
         optBox.append(this.group(adm ? 'Admin-Rechte von ' + en.name : 'Admin', rows));
       }

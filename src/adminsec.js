@@ -5,7 +5,14 @@ import { NS, Accounts } from './accounts.js';
 
 export const OWNER = 'entity_2806';
 export const OWNER_PUB = null; // fest verankerter öffentlicher Schlüssel "x.y" – null = erster veröffentlichter Schlüssel wird gemerkt
-export const PERMS = { self: 'Eigene Cheats', kick: 'Kicken', ban: 'Bannen', mute: 'Stummschalten', announce: 'Ansagen', bring: 'Spieler holen', heal: 'Heilen', give: 'Geld geben' };
+export const PERMS = {
+  kick: 'Kicken', ban: 'Bannen', mute: 'Stummschalten', announce: 'Ansagen', bring: 'Spieler holen', heal: 'Spieler heilen', give: 'Geld an Spieler geben',
+  veh: 'Fahrzeuge spawnen & verwalten', god: 'Gott-Modus, Heilen, Fähigkeiten (eigen)', money: 'Eigenes Geld ändern', weap: 'Waffen & Munition (eigen)', wanted: 'Fahndung ändern',
+  move: 'Tempo, Sprung, Fliegen', world: 'Uhrzeit, Wetter, Verkehr', chaos: 'Passanten & Explosionen', mission: 'Missionen steuern', tp: 'Teleport', tools: 'Werkzeuge (Speichern, Konsole)',
+};
+// früheres Sammelrecht "self" = alle eigenen Cheats
+export const SELF_PERMS = ['veh', 'god', 'money', 'weap', 'wanted', 'move', 'world', 'chaos', 'mission', 'tp', 'tools'];
+export const expandPerms = (p) => (p.includes('self') ? [...new Set([...p.filter((x) => x !== 'self'), ...SELF_PERMS])] : p);
 const ALG = { name: 'ECDSA', namedCurve: 'P-256' }, SIGN = { name: 'ECDSA', hash: { name: 'SHA-256' } };
 const te = new TextEncoder();
 const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
@@ -42,11 +49,11 @@ export const Sec = {
     }
     if (from === OWNER) { if (!this.ownerPub || !(await verifyRaw(this.ownerPub, env.d, env.s))) return null; return { p, from, owner: true, perms: Object.keys(PERMS) }; }
     const a = this.admins.find((x) => x.n.toLowerCase() === from); if (!a || !(await verifyRaw(a.k, env.d, env.s))) return null;
-    return { p, from, owner: false, perms: a.p };
+    return { p, from, owner: false, perms: expandPerms(a.p) };
   },
   myPerms() {
     if (this.isOwnerName() && (!this.ownerPub || this.ownerPub === this.pub)) return Object.keys(PERMS);
-    const a = Accounts.user && this.admins.find((x) => x.n.toLowerCase() === Accounts.user.key && x.k === this.pub); return a ? a.p : [];
+    const a = Accounts.user && this.admins.find((x) => x.n.toLowerCase() === Accounts.user.key && x.k === this.pub); return a ? expandPerms(a.p) : [];
   },
   isOwner() { return this.isOwnerName(); },
   ownerKeyOk() { return this.isOwnerName() && (!this.ownerPub || this.ownerPub === this.pub); },
@@ -70,5 +77,5 @@ export const Sec = {
     if (this.ownerPub) return; // schon gemerkt (oder im Code verankert): spätere Änderungen werden ignoriert
     this.ownerPub = m.k; try { localStorage.setItem('vc_ownerpub', m.k); } catch (e) { }
   },
-  async onAdmins(msg) { const r = await this.open(msg); if (!r || !r.owner || !Array.isArray(r.p.admins) || r.p.t <= this.adminsT) return false; this.adminsT = r.p.t; this.admins = r.p.admins.filter((a) => a && typeof a.n === 'string' && typeof a.k === 'string' && Array.isArray(a.p)); return true; },
+  async onAdmins(msg) { const r = await this.open(msg); if (!r || !r.owner || !Array.isArray(r.p.admins) || r.p.t <= this.adminsT) return false; this.adminsT = r.p.t; this.admins = r.p.admins.filter((a) => a && typeof a.n === 'string' && typeof a.k === 'string' && Array.isArray(a.p)).map((a) => ({ ...a, p: expandPerms(a.p) })); return true; },
 };
