@@ -32,7 +32,7 @@ export const Touch = {
         <button class="tb" data-key="KeyF" style="right:24px;bottom:252px">F</button><button class="tb sm" data-key="KeyE" style="right:100px;bottom:252px">E</button><button class="tb sm" data-key="KeyR" style="right:164px;bottom:252px">📻</button>
       </div>
       <div class="tg" data-g="air">
-        <button class="tb big" data-key="ShiftLeft" style="right:24px;bottom:150px">▲</button><button class="tb big" data-key="Space" style="right:24px;bottom:40px">▼</button>
+        <button class="tb big" data-key="ShiftLeft" data-hkey="Space" style="right:24px;bottom:150px">▲</button><button class="tb big" data-key="Space" data-hkey="ShiftLeft" style="right:24px;bottom:40px">▼</button>
         <button class="tb" data-key="KeyQ" style="right:130px;bottom:80px">◀</button><button class="tb" data-key="KeyE" style="right:200px;bottom:150px">▶</button>
         <button class="tb" data-key="KeyF" style="right:130px;bottom:220px">F</button>
       </div>`;
@@ -54,9 +54,10 @@ export const Touch = {
     lookZone.addEventListener('pointerup', endLook); lookZone.addEventListener('pointercancel', endLook);
     // Tasten
     for (const b of r.querySelectorAll('.tb')) {
-      const key = b.dataset.key, mouse = b.dataset.m, wheel = b.dataset.wheel, hold = b.dataset.hold, act = b.dataset.k;
+      let key = b.dataset.key, mouse = b.dataset.m, wheel = b.dataset.wheel, hold = b.dataset.hold, act = b.dataset.k;
       const down = (e) => {
         e.preventDefault(); try { b.setPointerCapture(e.pointerId); } catch (_) { } b.classList.add('on');
+        if (b.dataset.hkey) { const hv = G.player && G.player.vehicle; key = hv && hv.kind === 'heli' ? b.dataset.hkey : b.dataset.key; } // Hubschrauber: ▲ = Leertaste, ▼ = Shift
         if (key) { Input.pressed.add(key); Input.keys[key] = true; G.keys[key] = true; }
         else if (mouse === 'fire') { Input.buttons |= 1; Input.pressed.add('Mouse0'); } else if (mouse === 'aim') { Input.buttons |= 4; Input.pressed.add('Mouse2'); }
         else if (wheel) Input.wheel += +wheel;

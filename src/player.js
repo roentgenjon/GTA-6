@@ -311,7 +311,7 @@ export class Player {
       inp.pitch = (K('KeyS') ? 1 : 0) - (K('KeyW') ? 1 : 0);
       inp.roll = (K('KeyD') ? 1 : 0) - (K('KeyA') ? 1 : 0);
       inp.yaw = (K('KeyE') ? 1 : 0) - (K('KeyQ') ? 1 : 0);
-      inp.lift = (K('ShiftLeft') ? 1 : 0) - (K('Space') ? 1 : 0);
+      inp.lift = kind === 'heli' ? (K('Space') ? 1 : 0) - (K('ShiftLeft') ? 1 : 0) : (K('ShiftLeft') ? 1 : 0) - (K('Space') ? 1 : 0); // Heli: Leertaste hoch, Shift runter
       inp.brake = K('KeyS') && kind === 'plane' && v.flightSpeed < 10 ? 1 : 0; inp.handbrake = K('Space') && kind === 'plane' && v.grounded;
       inp.steer = inp.roll;
       if (kind === 'heli' && !(K('ShiftLeft') || K('Space'))) inp.lift = 0;

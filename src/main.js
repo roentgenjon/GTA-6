@@ -454,7 +454,7 @@ function updateInteract(dt) {
   for (const m of Markers.items) { if (m.tag === 'racestart') { const d = Math.hypot(m.x - pl.pos.x, m.z - pl.pos.z); if (d < 9 && inV) consider(d, `<kbd>E</kbd> Rennen: <b>${m.label}</b>`, () => { if (Police.level > 0) { UI.toast('Verliere erst die Polizei!'); return; } Race.start(m.race); }); } }
   // Fahrzeug
   if (!inV) { const v = pl.nearestVehicle(); if (v) { const d = 2.5; let txt = `<kbd>F</kbd> Einsteigen: ${v.spec.name}`; if (v.driver && v.driver.npc) txt = `<kbd>F</kbd> Fahrzeug stehlen: ${v.spec.name}`; else if (v.isDisplay || v.locked) txt = null; if (txt) consider(d + 0.5, txt, null); } }
-  else { if (pl.vehicle.kind === 'plane' || pl.vehicle.kind === 'heli') { if (!G._airHint) { G._airHint = true; UI.toast('✈ Shift = Gas · Leertaste = Gas weg · W/S = Neigung · A/D = Rollen · Q/E = Gieren'); } } }
+  else { if (pl.vehicle.kind === 'plane' || pl.vehicle.kind === 'heli') { if (!G._airHint) { G._airHint = true; UI.toast(pl.vehicle.kind === 'heli' ? '🚁 Leertaste = Steigen · Shift = Sinken · W/S = Neigung · A/D = Rollen · Q/E = Gieren' : '✈ Shift = Gas · Leertaste = Gas weg · W/S = Neigung · A/D = Rollen · Q/E = Gieren'); } } }
   if (inV && pl.vehicle.spec.special === 'taxi' && !Taxi.job) consider(50, '<kbd>T</kbd> Taxi-Dienst starten', null);
   UI.prompt(best ? best.label : '');
   if (best && best.fn && I.press('KeyE')) { best.fn(); Audio.play('ui'); }
