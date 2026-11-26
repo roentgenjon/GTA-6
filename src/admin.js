@@ -202,60 +202,69 @@ export const Admin = {
     await Sec.cmd(Multi.mq, Multi.base, c, to, args); this.say(ok);
   },
   tab_multi(b) {
-    const owner = Sec.isOwnerName(), me = this.pos(), nm = (r) => r.name.toLowerCase();
+    const owner = Sec.isOwnerName(), me = this.pos(), st = this.pst || (this.pst = { sel: null });
+    const entries = new Map(); // Kontoname (klein) → { name, r (online) }
+    for (const r of Multi.remotes.values()) entries.set(r.name.toLowerCase(), { name: r.name, r });
+    for (const x of Sec.admins) if (!entries.has(x.n.toLowerCase())) entries.set(x.n.toLowerCase(), { name: x.n });
+    for (const [n, v] of Sec.bans) if (v.until > Date.now() && !entries.has(n)) entries.set(n, { name: n });
+    for (const n of Sec.mutes.keys()) if (!entries.has(n)) entries.set(n, { name: n });
     b.append(this.el('div', { className: 'ameta', textContent: `Status: ${Multi.status} · ${Multi.remotes.size + 1} online · Deine Rechte: ${owner ? 'Haupt-Admin (alle)' : Sec.myPerms().map((p) => PERMS[p]).join(', ') || 'keine'}` }));
-    if (owner && !Sec.ownerKeyOk()) b.append(this.el('div', { className: 'ameta warn', textContent: '⚠ Dieses Gerät hat nicht den Admin-Schlüssel des Haupt-Admins – Befehle werden von anderen nicht anerkannt. Unter „Werkzeuge → Admin-Schlüssel“ den Schlüssel von deinem anderen Gerät importieren.' }));
-    const amt = this.num('Betrag', '10000', 90), why = this.txt('Minuten', '60', 90);
-    b.append(this.group('Werte für die Knöpfe unten', [this.el('span', { className: 'ameta', textContent: 'Geld $' }), amt, this.el('span', { className: 'ameta', textContent: 'Bann Minuten' }), why]));
-    const list = this.el('div', { className: 'alist' }); list.style.maxHeight = 'none';
-    for (const r of Multi.remotes.values()) {
-      const adm = Sec.admins.find((x) => x.n.toLowerCase() === nm(r)), muted = Sec.mutes.has(nm(r));
-      const row = this.el('div', { className: 'aprow' }, [this.el('b', { textContent: r.name + (adm ? ' 🛡' : '') + (muted ? ' 🔇' : '') }), this.el('span', { className: 'ameta', textContent: ` ${Math.round(Math.hypot(r.x - me.x, r.z - me.z))} m` })]);
-      const btns = this.el('div', { className: 'ar' });
-      if (this.has('self')) btns.append(this.button('Hin', () => this.tp(r.x + 2, r.z)));
-      btns.append(this.button('Holen', () => this.send('bring', nm(r), { x: Math.round(me.x), z: Math.round(me.z) }, r.name + ' wird geholt', 'bring')),
-        this.button('Heilen', () => this.send('heal', nm(r), {}, r.name + ' geheilt', 'heal')),
-        this.button('Geld', () => this.send('give', nm(r), { amount: Math.round(+amt.value) || 0 }, '$' + (+amt.value || 0) + ' an ' + r.name, 'give')),
-        this.button(muted ? 'Laut' : 'Stumm', () => this.send(muted ? 'unmute' : 'mute', nm(r), {}, r.name + (muted ? ' darf wieder schreiben' : ' stummgeschaltet'), 'mute')),
-        this.button('Kick', () => this.send('kick', nm(r), {}, r.name + ' entfernt', 'kick'), 'warn'),
-        this.button('Bann', () => this.send('ban', nm(r), { min: Math.max(1, Math.round(+why.value) || 60), why: isNaN(+why.value) ? why.value : '' }, r.name + ' gebannt', 'ban'), 'warn'));
-      if (owner) btns.append(this.button(adm ? 'Admin entziehen' : '🛡 Admin machen', async () => {
-        if (!Sec.ownerKeyOk()) return this.say('Dieses Gerät hat nicht den Admin-Schlüssel'); if (!Multi.mq) return;
-        if (adm) { await Sec.revoke(Multi.mq, r.name); this.say(r.name + ' ist kein Admin mehr'); }
-        else if (!r.k) { this.say(r.name + ' hat noch keinen Schlüssel gesendet – kurz warten'); }
-        else { await Sec.grant(Multi.mq, r.name, r.k, ['self', 'kick', 'mute', 'announce', 'heal', 'bring']); this.say(r.name + ' ist jetzt Admin (Rechte unten einstellbar)'); }
-        this.render();
-      }));
-      row.append(btns); list.append(row);
-    }
-    if (!Multi.remotes.size) list.append('Kein anderer Spieler online.');
-    b.append(this.el('h4', { textContent: 'Online-Spieler' }), list);
-    // Namen direkt (auch Offline-Spieler)
-    const who = this.txt('Kontoname', '', 160);
-    b.append(this.group('Nach Kontoname', [who, this.button('Bannen', () => who.value && this.send('ban', who.value.toLowerCase(), { min: Math.max(1, Math.round(+why.value) || 60) }, who.value + ' gebannt', 'ban'), 'warn'), this.button('Entbannen', () => who.value && this.send('unban', who.value.toLowerCase(), {}, who.value + ' entbannt', 'ban')),
-      this.button('Stumm', () => who.value && this.send('mute', who.value.toLowerCase(), {}, who.value + ' stumm', 'mute')), this.button('Entstummen', () => who.value && this.send('unmute', who.value.toLowerCase(), {}, who.value + ' entstummt', 'mute'))]));
-    if (Sec.bans.size || Sec.mutes.size) {
-      const bl = this.el('div', { className: 'ar' });
-      for (const [n, v] of Sec.bans) if (v.until > Date.now()) bl.append(this.button('🚫 ' + n + ' (' + Math.ceil((v.until - Date.now()) / 60000) + ' Min.) aufheben', () => this.send('unban', n, {}, n + ' entbannt', 'ban'), 'warn'));
-      for (const n of Sec.mutes.keys()) bl.append(this.button('🔇 ' + n + ' aufheben', () => this.send('unmute', n, {}, n + ' entstummt', 'mute')));
-      b.append(this.group('Sperren (bekannt in dieser Sitzung)', [bl]));
-    }
-    const ann = this.txt('Ansage an alle Spieler …', '', 280);
-    b.append(this.group('Ansage', [ann, this.button('Senden', () => { if (ann.value.trim() && this.has('announce')) { Multi.sendAnnounce(ann.value.trim()); this.say('Ansage gesendet'); ann.value = ''; } else this.say('Kein Recht oder leer'); })]));
-    // Admin-Verwaltung (nur Haupt-Admin)
-    if (owner) {
-      const ad = this.el('div', { className: 'alist' }); ad.style.maxHeight = 'none';
-      for (const x of Sec.admins) {
-        const row = this.el('div', { className: 'aprow' }, [this.el('b', { textContent: '🛡 ' + x.n }), this.el('span', { className: 'ameta', textContent: ' Schlüssel ' + Sec.fingerprint(x.k) })]);
-        const pr = this.el('div', { className: 'ar' });
-        for (const p of Object.keys(PERMS)) pr.append(this.toggleBtn(PERMS[p], () => x.p.includes(p), (v) => { x.p = v ? [...new Set([...x.p, p])] : x.p.filter((q) => q !== p); Sec.publishAdmins(Multi.mq); }));
-        pr.append(this.button('Entfernen', async () => { await Sec.revoke(Multi.mq, x.n); this.say(x.n + ' entfernt'); this.render(); }, 'warn')); row.append(pr); ad.append(row);
+    if (owner && !Sec.ownerKeyOk()) b.append(this.el('div', { className: 'ameta warn', textContent: '⚠ Dieses Gerät hat nicht den Admin-Schlüssel des Haupt-Admins – Befehle werden von anderen nicht anerkannt (Werkzeuge → Admin-Schlüssel importieren).' }));
+    // ---- Liste ----
+    const list = this.el('div', { className: 'alist plist' });
+    const optBox = this.el('div', { className: 'aopts' });
+    const paintList = () => {
+      list.innerHTML = '';
+      for (const [k, en] of entries) {
+        const adm = Sec.admins.find((x) => x.n.toLowerCase() === k), muted = Sec.mutes.has(k), ban = Sec.bans.get(k), on = !!en.r;
+        const d = on ? Math.round(Math.hypot(en.r.x - me.x, en.r.z - me.z)) + ' m' : 'offline';
+        const row = this.el('button', { className: 'ab li prow' + (st.sel === k ? ' sel' : '') }, [
+          this.el('span', { className: 'dot ' + (on ? 'on' : '') }), this.el('b', { textContent: en.name + (k === OWNER ? ' 👑' : adm ? ' 🛡' : '') + (muted ? ' 🔇' : '') + (ban && ban.until > Date.now() ? ' 🚫' : '') }), this.el('span', { className: 'ameta', textContent: ' ' + d })]);
+        row.addEventListener('click', () => { st.sel = k; paintList(); paintOpts(); this.say('Ausgewählt: ' + en.name); });
+        list.append(row);
       }
-      if (!Sec.admins.length) ad.append('Noch keine weiteren Admins. Bei einem Online-Spieler „🛡 Admin machen“ drücken.');
-      b.append(this.el('h4', { textContent: 'Admins verwalten (nur Haupt-Admin)' }), ad);
-    }
+      if (!entries.size) list.append('Kein anderer Spieler online.');
+    };
+    const amt = this.num('Betrag', '10000', 90), mins = this.num('Min.', '60', 70), why = this.txt('Grund (optional)', '', 150);
+    const paintOpts = () => {
+      optBox.innerHTML = '';
+      const en = entries.get(st.sel); if (!en) { optBox.append(this.el('div', { className: 'ameta', textContent: '👆 Tippe oben einen Spieler an – dann erscheinen hier seine Optionen.' })); return; }
+      const k = st.sel, r = en.r, adm = Sec.admins.find((x) => x.n.toLowerCase() === k), muted = Sec.mutes.has(k), banned = Sec.bans.has(k) && Sec.bans.get(k).until > Date.now();
+      optBox.append(this.el('h4', { textContent: 'Optionen für ' + en.name }));
+      const tele = [];
+      if (r && this.has('self')) tele.push(this.button('📍 Zu ihm hin', () => this.tp(r.x + 2, r.z)));
+      if (r) tele.push(this.button('🧲 Zu mir holen', () => this.send('bring', k, { x: Math.round(me.x), z: Math.round(me.z) }, en.name + ' wird geholt', 'bring')));
+      if (tele.length) optBox.append(this.group('Teleport', tele));
+      if (r) optBox.append(this.group('Helfen', [this.button('💚 Heilen', () => this.send('heal', k, {}, en.name + ' geheilt', 'heal')), amt, this.button('💰 Geld geben', () => this.send('give', k, { amount: Math.round(+amt.value) || 0 }, '$' + (+amt.value || 0) + ' an ' + en.name, 'give'))]));
+      optBox.append(this.group('Moderation', [
+        this.button(muted ? '🔊 Entstummen' : '🔇 Stummschalten', () => this.send(muted ? 'unmute' : 'mute', k, {}, en.name + (muted ? ' entstummt' : ' stummgeschaltet'), 'mute')),
+        ...(r ? [this.button('🚪 Kick', () => this.send('kick', k, {}, en.name + ' entfernt', 'kick'), 'warn')] : []),
+        mins, this.button('🚫 Bannen', () => this.send('ban', k, { min: Math.max(1, Math.round(+mins.value) || 60), why: why.value }, en.name + ' gebannt', 'ban'), 'warn'), why,
+        ...(banned ? [this.button('♻ Entbannen', () => this.send('unban', k, {}, en.name + ' entbannt', 'ban'))] : []),
+      ]));
+      if (owner && k !== OWNER) {
+        const rows = [];
+        if (adm) {
+          for (const p of Object.keys(PERMS)) rows.push(this.toggleBtn(PERMS[p], () => adm.p.includes(p), (v) => { adm.p = v ? [...new Set([...adm.p, p])] : adm.p.filter((q) => q !== p); Sec.publishAdmins(Multi.mq); }));
+          rows.push(this.button('❌ Admin entziehen', async () => { if (!Sec.ownerKeyOk()) return this.say('Dieses Gerät hat nicht den Admin-Schlüssel'); await Sec.revoke(Multi.mq, en.name); this.say(en.name + ' ist kein Admin mehr'); this.render(); }, 'warn'));
+        } else rows.push(this.button('🛡 Zum Admin machen', async () => {
+          if (!Sec.ownerKeyOk()) return this.say('Dieses Gerät hat nicht den Admin-Schlüssel');
+          if (!r) return this.say('Der Spieler muss online sein');
+          if (!r.k) return this.say(en.name + ' hat noch keinen Schlüssel gesendet – kurz warten');
+          await Sec.grant(Multi.mq, en.name, r.k, ['self', 'kick', 'mute', 'announce', 'heal', 'bring']); this.say(en.name + ' ist jetzt Admin – Rechte stellst du hier ein'); this.render();
+        }, 'on'));
+        optBox.append(this.group(adm ? 'Admin-Rechte von ' + en.name : 'Admin', rows));
+      }
+    };
+    b.append(this.el('h4', { textContent: 'Spieler (' + entries.size + ')' }), list, optBox);
+    paintList(); paintOpts();
+    // ---- Allgemein ----
+    const who = this.txt('Kontoname (auch offline)', '', 190);
+    b.append(this.group('Spieler per Name suchen', [who, this.button('Auswählen', () => { const k = who.value.trim().toLowerCase(); if (!k) return; if (!entries.has(k)) entries.set(k, { name: who.value.trim() }); st.sel = k; paintList(); paintOpts(); })]));
+    const ann = this.txt('Ansage an alle Spieler …', '', 280);
+    b.append(this.group('Ansage an alle', [ann, this.button('📢 Senden', () => { if (ann.value.trim() && this.has('announce')) { Multi.sendAnnounce(ann.value.trim()); this.say('Ansage gesendet'); ann.value = ''; } else this.say('Kein Recht oder leer'); })]));
     b.append(this.group('Verbindung', [this.button('Chat leeren', () => { if (Multi.chatEl) Multi.chatEl.log.innerHTML = ''; }), this.button('Neu verbinden', () => { const n = Accounts.user.name; Multi.banned = false; Multi.stop(); setTimeout(() => Multi.start(n), 300); }), this.button('Mehrspieler aus', () => Multi.stop(), 'warn')]));
-    b.append(this.el('div', { className: 'ameta', textContent: 'Alle Befehle sind digital signiert; Spieler dieser Version erkennen gefälschte Befehle. Admin-Rechte kann nur der Haupt-Admin „Entity_2806“ vergeben. Wirksam sind Befehle nur bei Spielern, die gerade online sind (Bann/Stumm auch später beim Beitreten).' }));
+    b.append(this.el('div', { className: 'ameta', textContent: 'Alle Befehle sind digital signiert; Admin-Rechte kann nur der Haupt-Admin „Entity_2806“ vergeben. Befehle wirken bei Spielern, die online sind (Bann/Stumm auch später beim Beitreten).' }));
   },
   // ---------- Werkzeuge ----------
   tab_tools(b) {

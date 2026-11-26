@@ -235,3 +235,6 @@ body.touch #adminbtn { left: calc(40px + env(safe-area-inset-left)); bottom: cal
 
 #adminpanel .atabs .ab { white-space: nowrap; flex: 0 0 auto; line-height: 1.2; } #adminpanel .ab { line-height: 1.25; }
 #adminpanel .aprow { padding: 8px 0; border-bottom: 1px solid var(--line); } #adminpanel .ameta.warn { color: #ffb36b; }
+
+#adminpanel .plist { max-height: 30vh; } #adminpanel .prow { display: flex; align-items: center; gap: 8px; } #adminpanel .dot { width: 10px; height: 10px; border-radius: 50%; background: #666; flex: 0 0 auto; } #adminpanel .dot.on { background: #35ffb4; }
+#adminpanel .aopts { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: rgba(60,30,120,.25); }
