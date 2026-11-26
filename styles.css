@@ -208,3 +208,20 @@ body.showfps #fps { display: block; }
 body.touch .mpchat { top: 232px; width: min(300px, 44vw); }
 
 .tg[data-g=top] .tb:nth-child(4) { top: auto; right: auto; bottom: calc(214px + env(safe-area-inset-bottom)); left: calc(40px + env(safe-area-inset-left)); }
+
+/* ---- Admin-Panel ---- */
+#adminbtn { position: fixed; left: 14px; bottom: 14px; z-index: 90; width: 46px; height: 46px; border-radius: 50%; border: 2px solid #ff3dbb; background: rgba(20,10,40,.8); color: #fff; font-size: 22px; padding: 0; }
+body.touch #adminbtn { left: calc(40px + env(safe-area-inset-left)); bottom: calc(296px + env(safe-area-inset-bottom)); }
+#adminpanel { position: fixed; z-index: 95; left: 50%; top: 50%; transform: translate(-50%, -50%); width: min(780px, 96vw); max-height: 88vh; display: flex; flex-direction: column; background: rgba(14,7,30,.96); border: 1px solid var(--line); border-radius: 14px; box-shadow: 0 20px 60px rgba(0,0,0,.6); color: #fff; font-size: 14px; }
+#adminpanel .ahead { display: flex; align-items: center; gap: 10px; padding: 10px 12px; border-bottom: 1px solid var(--line); flex-wrap: wrap; } #adminpanel .ahead .ainfo { flex: 1; font-size: 12px; color: var(--cyan); font-family: ui-monospace, monospace; }
+#adminpanel .atabs { display: flex; gap: 6px; padding: 8px 10px; overflow-x: auto; border-bottom: 1px solid var(--line); }
+#adminpanel .abody { padding: 10px 12px 16px; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+#adminpanel .ag { margin-bottom: 12px; } #adminpanel h4 { margin: 8px 0 6px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; color: var(--pink); }
+#adminpanel .ar { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+#adminpanel .ab { background: #2a1850; color: #fff; border: 1px solid var(--line); border-radius: 8px; padding: 9px 12px; font-size: 13px; min-height: 38px; cursor: pointer; }
+#adminpanel .ab.on { background: linear-gradient(135deg, #ff3dbb, #7846ff); } #adminpanel .ab.warn { border-color: #ff6b8a; color: #ffc3cf; } #adminpanel .ab.x { margin-left: auto; }
+#adminpanel .ab.li { display: block; width: 100%; text-align: left; margin-bottom: 4px; }
+#adminpanel .alist { max-height: 38vh; overflow-y: auto; margin-top: 6px; } #adminpanel .arow { display: flex; gap: 8px; align-items: center; padding: 4px 0; }
+#adminpanel .ameta { font-size: 12px; color: var(--dim); margin: 6px 0; white-space: pre-wrap; }
+#adminpanel textarea, #adminpanel input[type=text] { background: #1c1236; color: #fff; border: 1px solid var(--line); border-radius: 6px; padding: 8px 10px; font-size: 14px; }
+.mpchat .mpmsg.ann { background: rgba(255,61,187,.35); }

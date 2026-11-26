@@ -155,6 +155,7 @@ export class Player {
     // Regeneration
     this.regenT += dt; if (this.regenT > 6 && this.hp < 50 && !this.vehicle) this.hp = Math.min(50, this.hp + dt * 1.5);
     if (this.energy > 0) { this.energy -= dt; this.stamina = 1; }
+    if (G.cheat && G.cheat.stamina) this.stamina = 1;
     const ctl = G.state === 'play';
     // Kamera-Mausdrehung
     const sens = 0.0022 * G.settings.sens;
@@ -192,6 +193,8 @@ export class Player {
     this.aiming = ctl && (I.buttons & 4) !== 0 && !!this.weapon && !this.weapon.melee;
     let speed = this.sprinting ? 7.4 : 4.4; if (this.aiming) speed = 2.3; if (inWater) speed = this.sprinting ? 3.4 : 2.6; if (len > 0 && len < 0.3) speed = 1.5;
     if (!this.onGround && !inWater) speed *= 0.85;
+    if (G.cheat && G.cheat.speed) speed *= G.cheat.speed; // Admin: Lauftempo
+    const fly = !!(G.cheat && G.cheat.fly);
     // Boden/Schwimmen
     const gh = TR.groundHeight(p.x, p.z);
     this.swim = inWater;
@@ -211,16 +214,19 @@ export class Player {
         if (vs > 3) { this.damage(vs * 4, { x: v.pos.x, z: v.pos.z }); this.knock.x += v.vel.x * 0.6; this.knock.z += v.vel.z * 0.6; if (v.driver && v.driver.npc) { } if (vs > 5) emit('crime', 'ran_player', v.pos, v); }
       }
     }
-    TR.resolveCircle(p, 0.38, p.y);
+    if (!fly) TR.resolveCircle(p, 0.38, p.y);
     // Wasser
     const terr = TR.terrainHeight(p.x, p.z);
     const swimming = terr < TR.WATER - 0.95;
-    if (swimming) {
+    if (fly) { // Admin: Fliegen/Noclip (Leertaste hoch, Q runter, Shift schneller)
+      const up = ctl ? ((I.down('Space') ? 1 : 0) - (I.down('KeyQ') ? 1 : 0)) : 0;
+      p.y = Math.max(p.y + up * 14 * dt * (this.sprinting ? 2.2 : 1), gh); this.vy = 0; this.onGround = false; this.swim = false;
+    } else if (swimming) {
       this.swim = true; const targetY = TR.WATER - 0.9 + Math.sin(G.clock * 2) * 0.05; p.y = damp(p.y, targetY, 8, dt); this.vy = 0; this.onGround = false;
       if (this.moving && Math.random() < dt * 8) FX.splash(p.x, TR.WATER + 0.05, p.z, this.vel.x, this.vel.z, 0.5);
     } else {
       this.swim = false;
-      if (this.onGround && ctl && I.press('Space')) { this.vy = 7.4; this.onGround = false; G.stats.jumps = (G.stats.jumps || 0); }
+      if (this.onGround && ctl && I.press('Space')) { this.vy = 7.4 * ((G.cheat && G.cheat.jump) || 1); this.onGround = false; G.stats.jumps = (G.stats.jumps || 0); }
       this.vy -= 22 * dt; p.y += this.vy * dt;
       if (p.y <= gh) { if (!this.onGround && this.vy < -11) { this.damage((-this.vy - 10) * 6); } p.y = gh; this.vy = 0; this.onGround = true; }
       else if (p.y > gh + 0.25) this.onGround = false; else if (this.vy <= 0) { p.y = gh; this.onGround = true; }

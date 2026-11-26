@@ -37,6 +37,10 @@ Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick 
 - **Technik:** Weil die Seite statisch gehostet wird (kein eigener Server), läuft alles über einen öffentlichen MQTT-Broker (`src/net.js`, Fallbacks: EMQX → HiveMQ → Mosquitto; mit `?broker=wss://…` lässt sich ein eigener Broker erzwingen). Das Passwort verlässt nie das Gerät: aus Name + Passwort wird per PBKDF2 ein Prüfwert; der Name wird online über eine Retained-Nachricht reserviert (`src/accounts.js`).
 - **Grenzen:** Ein öffentlicher Broker kann Namen nicht erzwingen – ein manipulierter Client könnte einen Namen überschreiben oder sich als anderer ausgeben; Positionen und Chat sind für jeden mitlesbar, der das Thema kennt. Für echte Konten braucht es ein eigenes Backend (z. B. Firebase/Supabase oder einen eigenen WebSocket-Server).
 
+## Admin-Panel
+
+Nur für das Konto **Entity_2806** (🛡-Knopf links bzw. F9): Gott-Modus, Fahrzeug unzerstörbar, unendlich Munition/Ausdauer, Schnellfeuer, Heilen, Geld setzen/addieren, Fahndung, alle Waffen, Lauftempo, Supersprung, Fliegen/Noclip, alle 128 Fahrzeuge spawnen/reparieren/umdrehen/Nitro, Uhrzeit/Zeitgeschwindigkeit/Zeit einfrieren, Wetter, Passanten spawnen/löschen, Explosionen, Missionen starten/abbrechen/abschließen, Teleport (Koordinaten, Orte, Wegpunkt), Mitspielerliste (hin teleportieren, stummschalten), Ansage an alle, Spielstand speichern/exportieren/importieren, Cheat-Konsole, Statistik. **Hinweis:** Die Prüfung läuft im Client (kein eigener Server); der Name „Entity_2806“ gehört demjenigen, der ihn zuerst registriert.
+
 ## Leistung auf Tablets
 
 - **Mittel** ist auf iPad/Tablets der Standard: ein Schattenkaskaden-Fenster (ca. 150 m) mit 4-Punkt-Filter, keine Spiegelungs-Zusatzrunde und keine Sonnenstrahlen, Kantenglättung per FXAA statt MSAA, Lampenlichter nur nachts (beide Licht-Varianten werden beim Laden vorab kompiliert), Himmel wird zuletzt gezeichnet (Wolken-Shader nur auf freien Pixeln). Spiegelungen und Sonnenstrahlen gibt es ab **Hoch**.

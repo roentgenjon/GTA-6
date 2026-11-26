@@ -22,7 +22,7 @@ const wrapAngle = (a) => { while (a > Math.PI) a -= 6.2832; while (a < -Math.PI)
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
 export const Multi = {
-  on: false, status: 'aus', remotes: new Map(), id: Math.random().toString(36).slice(2, 8), name: '', mq: null, sendT: 0, lookT: 0, wasIn: false, chatEl: null, chatOpen: false, lastChat: 0, dup: false,
+  on: false, status: 'aus', muted: new Set(), remotes: new Map(), id: Math.random().toString(36).slice(2, 8), name: '', mq: null, sendT: 0, lookT: 0, wasIn: false, chatEl: null, chatOpen: false, lastChat: 0, dup: false,
   async start(name) {
     if (this.mq) return;
     this.name = name; this.setStatus('verbinde');
@@ -157,9 +157,13 @@ export const Multi = {
     const now = performance.now(); if (!this.mq || now - this.lastChat < 700) return; this.lastChat = now;
     this.mq.publish(`${this.base}/chat`, JSON.stringify({ n: this.name, m: t.slice(0, 120), i: this.id }));
   },
+  sendAnnounce(t) { if (!this.mq) return; this.mq.publish(`${this.base}/chat`, JSON.stringify({ n: this.name, m: t.slice(0, 120), i: this.id, a: 1 })); },
   onChat(msg) {
     let m; try { m = JSON.parse(msg); } catch (e) { return; } if (!m || typeof m.m !== 'string') return;
-    const mine = m.i === this.id, el = document.createElement('div'); el.className = 'mpmsg' + (mine ? ' me' : ''); el.dataset.t = performance.now();
+    if (this.muted.has(String(m.n || '').toLowerCase())) return;
+    const ann = m.a === 1 && String(m.n || '').toLowerCase() === 'entity_2806'; // Admin-Ansage (nur ein Hinweis, keine verbindliche Prüfung)
+    if (ann) emit('toast', '📢 ' + esc(String(m.m).slice(0, 120)));
+    const mine = m.i === this.id, el = document.createElement('div'); el.className = 'mpmsg' + (mine ? ' me' : '') + (ann ? ' ann' : ''); el.dataset.t = performance.now();
     el.innerHTML = `<b>${esc(String(m.n || '?').slice(0, 16))}</b> ${esc(m.m.slice(0, 120))}`; this.chatEl.log.appendChild(el);
     while (this.chatEl.log.children.length > 7) this.chatEl.log.firstChild.remove();
     if (!mine && G.audio) { try { G.audio.play('blip'); } catch (e) { } }

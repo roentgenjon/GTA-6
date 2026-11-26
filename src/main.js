@@ -30,6 +30,7 @@ import { Touch } from './touch.js';
 import { Updater } from './updater.js';
 import { Accounts } from './accounts.js';
 import { Multi } from './multi.js';
+import { Admin } from './admin.js';
 import { showLogin } from './login.js';
 import { city, cullList } from './city.js';
 import { SITES } from './sites.js';
@@ -189,7 +190,7 @@ async function boot() {
   for (const ev of ['pointerdown', 'keydown', 'touchend']) window.addEventListener(ev, () => { try { Audio.init(); Audio.resume(); } catch (e) { } }, { passive: true });
   // Anmeldung ist Pflicht: erst nach Name + Passwort geht es weiter (gespeichertes Konto → automatisch)
   const enter = () => {
-    G.account = Accounts.user; Save.setKey(Accounts.saveKey()); Multi.start(Accounts.user.name);
+    G.account = Accounts.user; Save.setKey(Accounts.saveKey()); Multi.start(Accounts.user.name); Admin.init();
     if (new URLSearchParams(location.search).has('autostart')) { G.startNew(); }
     else if (resume && Save.has()) { G.continueGame(); UI.toast('✅ Spiel wurde aktualisiert'); }
     else UI.showTitle();
@@ -505,7 +506,7 @@ function loop(now) {
     if (st !== 'menu' || true) { const ts = G.settings.timeScale; G.hour += dt * ts / 60; if (G.hour >= 24) { G.hour -= 24; G.day++; } }
     G.weather.update(dt);
     pl.update(dt);
-    Veh.update(dt); Peds.update(dt); Traffic.update(dt); Police.update(dt); Combat.update(dt); Multi.update(dt);
+    Veh.update(dt); Peds.update(dt); Traffic.update(dt); Police.update(dt); Combat.update(dt); Multi.update(dt); Admin.update(dt);
     if (st !== 'menu') { Missions.update(dt); Race.update(dt); Taxi.update(dt); Delivery.update(dt); Events.update(dt); Eco.updateGarage(); updateInteract(dt); Markers.update(dt); saveTimer += dt; }
     else { Markers.update(dt); }
     UI.tickCutscene(dt);
@@ -554,5 +555,5 @@ function loop(now) {
 // Debug-Hooks
 window.__dbg = { get composer() { return composer; }, get csm() { return csm; }, get sunPass() { return sunPass; }, get cinePass() { return cinePass; }, get outPass() { return outPass; }, get bloom() { return bloom; }, get renderer() { return renderer; }, get scene() { return scene; }, get camera() { return camera; }, get sky() { return sky; }, get lamps() { return lampLights; }, get spot() { return headSpot; }, cullList, Reflect, updateSunPass, Gov, QUALITY, setupComposer };
 G.multiList = () => Multi.list();
-window.__G = G; window.__mods = { Multi, Accounts, World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
+window.__G = G; window.__mods = { Admin, Multi, Accounts, World, Reflect, Missions, Veh, Peds, Police, Traffic, Eco, UI, Race, Taxi, Delivery, Events, Combat, TR, Markers, city, Input, CamCtl };
 boot().catch((e) => { console.error(e); const t = document.querySelector('#loading .tip'); if (t) t.textContent = 'Fehler beim Start: ' + e.message; });
