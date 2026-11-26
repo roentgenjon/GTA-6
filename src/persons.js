@@ -135,6 +135,7 @@ function gunMesh(kind) {
 export class Person {
   constructor(look) {
     this.look = look; this.group = new THREE.Group();
+    const bl = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 1.1), M.blob); bl.rotation.x = -Math.PI / 2; bl.position.y = 0.03; this.group.add(bl); this.blob = bl;
     this.bones = {}; this.mesh = null;
     this.phase = Math.random() * 6; this.state = 'idle'; this.speed = 0; this.aimBlend = 0; this.swimT = 0;
     this.deadT = 0; this.sitBlend = 0; this.fear = 0; this.tilt = 0; this.shoot = 0; this.punch = 0; this.hit = 0; this.stateT = 0;

@@ -18,6 +18,10 @@ Ein im Browser spielbares, komplett prozedural erzeugtes Open-World-Spiel im Sti
 | M, I, J, P, ESC | Karte, Inventar, Missionen, Handy, Pause |
 | Flugzeug/Heli | Shift = Schub/Steigen, Leertaste = Schub weg/Sinken, W/S Neigung, A/D Rollen, Q/E Gieren |
 
+## Touch / iPad
+
+Auf Tablets und Handys erscheint automatisch eine Touch-Steuerung: linker Stick (Bewegen bzw. Lenken), Wischen rechts (Kamera), Tasten für Schießen, Zielen, Springen, E/F, Gas/Bremse/Handbremse im Auto sowie Schub/Neigung im Flugzeug. Unter *Einstellungen → Touch-Steuerung* lässt sie sich erzwingen oder ausschalten. Auf Touch-Geräten startet das Spiel in „Mittel"; für mehr Grafik die Qualität erhöhen. Tipp für iPad: Seite zum Home-Bildschirm hinzufügen (Vollbild).
+
 ## Inhalt
 
 - **Welt:** 24×24-Block-Stadt (Downtown-Wolkenkratzer, Neon District, Marina Shores mit Strand, Palm-Estates-Villen, Hafen, Industrie, Vororte), Flughafen mit Rollfeld, Bucht mit Stegen, Insel, Berge, Wälder, Farmen. Tag/Nacht-Zyklus, Sonnenuntergang, Regen, Gewitter, Nebel, Wolken, nasse Straßen.
@@ -26,7 +30,7 @@ Ein im Browser spielbares, komplett prozedural erzeugtes Open-World-Spiel im Sti
 - **Polizei:** 5 Fahndungsstufen, Zeugen, Streifenwagen, SWAT, Armee, Helikopter mit Scheinwerfer, Straßensperren, Festnahme/Krankenhaus.
 - **Story:** 12 Missionen mit Dialogen/Zwischensequenzen, plus Straßenrennen, Taxi, Lieferjobs, Stunt-Sprünge, zufällige Ereignisse, Herausforderungen.
 - **Spielsysteme:** Geld, Immobilien mit Garagen, Geschäfte mit Einnahmen, Autohaus, Tuning, Kleidung/Friseur, Waffenladen, Casino (Slots, Blackjack), Basketball, interaktive Karte mit GPS, Charakter-Editor, Inventar, Speichern/Laden (localStorage).
-- **Technik:** Three.js r170 (lokal eingebunden in `vendor/`), PBR-Materialien, Umgebungsreflexionen aus dem Himmel, Schatten, Bloom, Bewegungsunschärfe, prozedurale Texturen, WebAudio (Motor, Sirenen, Regen, Schüsse, Radiosender).
+- **Technik:** Three.js r170 (lokal eingebunden in `vendor/`), PBR-Materialien mit Bump-Maps, Fassaden mit Jalousien/Rahmen, Kontaktschatten, Straßenmobiliar, Auto-Innenräume, Ambient Occlusion (Ultra), Umgebungsreflexionen aus dem Himmel, Schatten, Bloom, Bewegungsunschärfe, prozedurale Texturen, WebAudio (Motor, Sirenen, Regen, Schüsse, Radiosender).
 
 ## Cheats (Handy → Cheat-Konsole)
 

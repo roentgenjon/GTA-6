@@ -257,10 +257,20 @@ export const UI = {
     const cv = $('#mapcv'), M_ = this.map; const pl = G.player; if (!M_.init) { M_.cx = pl.pos.x; M_.cz = pl.pos.z; M_.init = true; } M_.cx = pl.pos.x; M_.cz = pl.pos.z; M_.zoom = 0.2;
     const resize = () => { cv.width = cv.clientWidth; cv.height = cv.clientHeight; }; resize();
     const toW = (sx, sy) => [M_.cx + (sx - cv.width / 2) / M_.zoom, M_.cz + (sy - cv.height / 2) / M_.zoom];
-    cv.onwheel = (e) => { e.preventDefault(); const [wx, wz] = toW(e.offsetX * (cv.width / cv.clientWidth), e.offsetY * (cv.height / cv.clientHeight)); const z0 = M_.zoom; M_.zoom = clamp(M_.zoom * (e.deltaY < 0 ? 1.2 : 1 / 1.2), 0.04, 1.6); M_.cx = wx - (wx - M_.cx) * z0 / M_.zoom; M_.cz = wz - (wz - M_.cz) * z0 / M_.zoom; };
-    cv.onmousedown = (e) => { M_.drag = { x: e.clientX, y: e.clientY, cx: M_.cx, cz: M_.cz, moved: false }; };
-    window.onmousemove = (e) => { if (M_.drag) { const dx = e.clientX - M_.drag.x, dy = e.clientY - M_.drag.y; if (Math.abs(dx) + Math.abs(dy) > 4) M_.drag.moved = true; M_.cx = M_.drag.cx - dx / M_.zoom; M_.cz = M_.drag.cz - dy / M_.zoom; } const r = cv.getBoundingClientRect(); const [wx, wz] = toW((e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)); M_.hover = { x: wx, z: wz }; };
-    window.onmouseup = (e) => { if (M_.drag && !M_.drag.moved && e.target === cv) { if (e.button === 0) { const r = cv.getBoundingClientRect(); const [wx, wz] = toW((e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)); Markers.setWaypoint(wx, wz); this.updateRoute(); Audio.play('ok'); } } M_.drag = null; };
+    const zoomBy = (f, ox, oz) => { const z0 = M_.zoom; M_.zoom = clamp(M_.zoom * f, 0.04, 1.6); M_.cx = ox - (ox - M_.cx) * z0 / M_.zoom; M_.cz = oz - (oz - M_.cz) * z0 / M_.zoom; };
+    cv.onwheel = (e) => { e.preventDefault(); const [wx, wz] = toW(e.offsetX * (cv.width / cv.clientWidth), e.offsetY * (cv.height / cv.clientHeight)); zoomBy(e.deltaY < 0 ? 1.2 : 1 / 1.2, wx, wz); };
+    const wrap = $('#mapwrap'); const zb = el('<div id="mapzoom"><button data-z="1">+</button><button data-z="-1">−</button></div>'); wrap.appendChild(zb); zb.onclick = (e) => { const b = e.target.closest('[data-z]'); if (b) zoomBy(+b.dataset.z > 0 ? 1.35 : 1 / 1.35, M_.cx, M_.cz); };
+    const ptrs = new Map(); let pinch = 0;
+    const loc = (e) => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * (cv.width / r.width), (e.clientY - r.top) * (cv.height / r.height)]; };
+    cv.onpointerdown = (e) => { try { cv.setPointerCapture(e.pointerId); } catch (_) { } ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY }); M_.drag = { x: e.clientX, y: e.clientY, cx: M_.cx, cz: M_.cz, moved: false, btn: e.button }; if (ptrs.size === 2) { const [a, b2] = [...ptrs.values()]; pinch = Math.hypot(a.x - b2.x, a.y - b2.y); M_.drag.moved = true; } };
+    cv.onpointermove = (e) => {
+      if (ptrs.has(e.pointerId)) ptrs.set(e.pointerId, { x: e.clientX, y: e.clientY });
+      if (ptrs.size === 2) { const [a, b2] = [...ptrs.values()]; const d = Math.hypot(a.x - b2.x, a.y - b2.y); if (pinch) zoomBy(d / pinch, M_.cx, M_.cz); pinch = d; return; }
+      if (M_.drag) { const dx = e.clientX - M_.drag.x, dy = e.clientY - M_.drag.y; if (Math.abs(dx) + Math.abs(dy) > 6) M_.drag.moved = true; if (M_.drag.moved) { M_.cx = M_.drag.cx - dx / M_.zoom; M_.cz = M_.drag.cz - dy / M_.zoom; } }
+      const [sx, sy] = loc(e); const [wx, wz] = toW(sx, sy); M_.hover = { x: wx, z: wz };
+    };
+    cv.onpointerup = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = 0; if (M_.drag && !M_.drag.moved && e.button === 0) { const [sx, sy] = loc(e); const [wx, wz] = toW(sx, sy); Markers.setWaypoint(wx, wz); this.updateRoute(); Audio.play('ok'); } M_.drag = null; };
+    cv.onpointercancel = () => { ptrs.clear(); M_.drag = null; };
     cv.oncontextmenu = (e) => { e.preventDefault(); Markers.setWaypoint(null); this.route = null; };
     const loop = () => { if (G.state !== 'pause' || this.tab !== 'map' || !$('#mapcv')) return; this.drawFullMap(cv); requestAnimationFrame(loop); }; requestAnimationFrame(loop);
   },
@@ -380,7 +390,7 @@ export const UI = {
     <h3 style="margin-top:14px">Audio</h3><div class="setrow"><span>Gesamtlautstärke</span><div>${sl('volume', 0, 1, 0.05, (v) => Math.round(v * 100) + '%')}</div></div><div class="setrow"><span>Radio / Musik</span><div>${sl('music', 0, 1, 0.05, (v) => Math.round(v * 100) + '%')}</div></div>
     <h3 style="margin-top:14px">Steuerung</h3><div class="setrow"><span>Mausempfindlichkeit</span><div>${sl('sens', 0.2, 3, 0.05, (v) => v.toFixed(2))}</div></div><div class="setrow"><span>Maus Y invertieren</span>${tg('invertY')}</div>
     <h3 style="margin-top:14px">Spiel</h3><div class="setrow"><span>Verkehrs-/Fußgängerdichte</span><div>${sl('traffic', 0, 2, 0.1, (v) => Math.round(v * 100) + '%')}</div></div><div class="setrow"><span>Zeitgeschwindigkeit</span><div>${sl('timeScale', 0, 5, 0.25, (v) => v + 'x')}</div></div>
-    <div class="setrow"><span>Einheit</span><select data-s="units"><option value="kmh" ${s.units === 'kmh' ? 'selected' : ''}>km/h</option><option value="mph" ${s.units === 'mph' ? 'selected' : ''}>mph</option></select></div><div class="setrow"><span>Untertitel</span>${tg('subtitles')}</div>`;
+    <div class="setrow"><span>Einheit</span><select data-s="units"><option value="kmh" ${s.units === 'kmh' ? 'selected' : ''}>km/h</option><option value="mph" ${s.units === 'mph' ? 'selected' : ''}>mph</option></select></div><div class="setrow"><span>Untertitel</span>${tg('subtitles')}</div><div class="setrow"><span>Touch-Steuerung</span><select data-s="touch">${[['auto', 'Automatisch'], ['on', 'Immer an'], ['off', 'Aus']].map(([v, n]) => `<option value="${v}" ${s.touch === v ? 'selected' : ''}>${n}</option>`).join('')}</select></div>`;
     const upd = (e) => { const t = e.target; const k = t.dataset.s; if (!k) return; let v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? +t.value : t.value; s[k] = v; const sv = $('#sv_' + k); if (sv) sv.textContent = k === 'fov' ? v : (t.type === 'range' ? (k === 'sens' ? (+v).toFixed(2) : k === 'timeScale' ? v + 'x' : k === 'traffic' || k === 'volume' || k === 'music' ? Math.round(v * 100) + '%' : v) : ''); Save.saveSettings(); G.applySettings(k); };
     pane.oninput = upd; pane.onchange = upd;
   },

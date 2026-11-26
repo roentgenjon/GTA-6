@@ -29,6 +29,8 @@ function facade(B, kind, cx, cz, w, d, h, col, r, base = TOP) {
   const fl = Math.max(1, Math.round(h / FH)); h = fl * FH;
   const tex = { bw: BAY, fh: FH, ou: Math.floor(r() * 8) / 8, ov: Math.floor(r() * 8) / 8 };
   B[kind].box(cx, base + h / 2, cz, w, h, d, col, { tex, noTop: true, noBottom: true });
+  B.flat.box(cx, base + 0.5, cz, w + 0.35, 1.0, d + 0.35, 0x55534f, { noTop: true, noBottom: true });
+  if (kind !== 'curtain') B.flat.box(cx, base + 4.3, cz, w + 0.5, 0.3, d + 0.5, 0xd8d3c6, { noTop: false, noBottom: true });
   B.flat.box(cx, base + h + 0.25, cz, w + 0.5, 0.5, d + 0.5, ROOF[(r() * ROOF.length) | 0], { noBottom: true });
   const n = 1 + ((r() * 3) | 0);
   for (let k = 0; k < n; k++) B.flat.box(cx + (r() - 0.5) * (w - 4), base + h + 1.2, cz + (r() - 0.5) * (d - 4), 1.5 + r() * 2, 1.4, 1.5 + r() * 2, 0x9a9a9a);
@@ -267,7 +269,7 @@ function buildSite(B, props, S) {
 // -------------------------------------------------------------------
 export function buildCity(scene) {
   chunks.clear();
-  const props = { trees: [], palms: [], lamps: [], tl: [] };
+  const props = { trees: [], palms: [], lamps: [], tl: [], hyd: [], bin: [], bench: [], mail: [], shelter: [], sign: [] };
   const siteMap = new Map(SITES.map((s) => [s.i + ',' + s.j, s]));
   const cityRand = mulberry32(777);
   for (let i = -K; i < K; i++) for (let j = -K; j < K; j++) {
@@ -280,6 +282,7 @@ export function buildCity(scene) {
     B.slab.box(cx, TOP - 0.18, cz, P - R, 0.36, P - R, slabCol, { noBottom: true, topUV: [0, u, u, u, u, 0, 0, 0] });
     const site = siteMap.get(i + ',' + j);
     if (site) buildSite(B, props, site); else buildStandard(B, props, i, j, r);
+    { const o = (r() - 0.5) * 50; props.hyd.push([cx + o, cz + hw - 0.8, 0]); if (r() < 0.8) props.bin.push([cx + o + 3 + r() * 6, cz + hw - 0.9, 0]); if (r() < 0.45) props.bench.push([cx - o * 0.6, cz - hw + 1.0, 0]); if (r() < 0.5) props.mail.push([cx + hw - 0.9, cz + (r() - 0.5) * 40, Math.PI / 2]); if (r() < 0.12) props.shelter.push([cx + (r() - 0.5) * 30, cz + hw - 1.6, 0]); if (r() < 0.5) props.sign.push([cx - hw + 1.0, cz - hw + 1.0, 0]); }
     // Straßenlaternen + Straßenbäume
     for (const [sx, sz] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) props.lamps.push([cx + sx * (hw - 1.2), cz + sz * (hw - 1.2), Math.atan2(sx, sz) + Math.PI]);
     for (const m of [-1, 1]) { props.lamps.push([cx + m * (hw - 1.2), cz, m > 0 ? Math.PI / 2 : -Math.PI / 2]); props.lamps.push([cx, cz + m * (hw - 1.2), m > 0 ? 0 : Math.PI]); }
@@ -399,6 +402,13 @@ function buildInstances(props) {
   heads.frustumCulled = false; g.add(heads);
   const pg = new THREE.BufferGeometry(); pg.setAttribute('position', new THREE.Float32BufferAttribute(gp, 3));
   const pts = new THREE.Points(pg, M.glow); pts.frustumCulled = false; pts.renderOrder = 3; g.add(pts);
+  const sg = (fn) => { const b = new Builder(); fn(b); return b.build(); };
+  g.add(makeInstanced(sg((b) => { b.cyl(0, 0.35, 0, 0.13, 0.11, 0.7, 8, 0xc8261f, false); b.cyl(0, 0.75, 0, 0.14, 0.1, 0.1, 8, 0xc8261f); b.box(0.15, 0.5, 0, 0.12, 0.1, 0.1, 0xb0b0b0); b.box(-0.15, 0.5, 0, 0.12, 0.1, 0.1, 0xb0b0b0); }), M.flat, props.hyd, { rot: true, lift: 0.06, shadow: true }));
+  g.add(makeInstanced(sg((b) => { b.cyl(0, 0.45, 0, 0.3, 0.27, 0.9, 10, 0x2f5a3c, false); b.cyl(0, 0.93, 0, 0.32, 0.3, 0.07, 10, 0x1d3a27); }), M.flat, props.bin, { rot: true, lift: 0.06, shadow: true }));
+  g.add(makeInstanced(sg((b) => { b.box(0, 0.45, 0, 1.6, 0.07, 0.5, 0x7a5230); b.box(0, 0.8, -0.22, 1.6, 0.45, 0.06, 0x7a5230); b.box(-0.7, 0.22, 0, 0.08, 0.44, 0.45, 0x333); b.box(0.7, 0.22, 0, 0.08, 0.44, 0.45, 0x333); }), M.flat, props.bench, { rot: true, lift: 0.06, shadow: true }));
+  g.add(makeInstanced(sg((b) => { b.box(0, 0.55, 0, 0.5, 1.1, 0.5, 0x2a4fb0); b.box(0, 1.12, 0, 0.5, 0.08, 0.55, 0x1b3580); }), M.flat, props.mail, { rot: true, lift: 0.06, shadow: true }));
+  g.add(makeInstanced(sg((b) => { b.box(0, 2.6, 0, 3.6, 0.12, 1.6, 0x8a8f94); b.box(0, 1.3, -0.78, 3.4, 2.4, 0.05, 0x9fd0e0); b.box(-1.7, 1.3, 0, 0.05, 2.4, 1.5, 0x9fd0e0); b.box(1.7, 1.3, 0, 0.05, 2.4, 1.5, 0x9fd0e0); b.box(0, 0.45, -0.4, 2.4, 0.08, 0.4, 0x555a60); }), M.flat, props.shelter, { rot: true, lift: 0.06, shadow: true }));
+  g.add(makeInstanced(sg((b) => { b.cyl(0, 1.3, 0, 0.04, 0.04, 2.6, 6, 0x888d92, false); b.cyl(0, 2.55, 0, 0.5, 0.5, 0.05, 8, 0xd02020); b.cyl(0, 2.55, 0.03, 0.4, 0.4, 0.04, 8, 0xffffff); }), M.flat, props.sign, { rot: true, lift: 0.06 }));
   // Ampeln
   const tl = props.tl;
   g.add(makeInstanced(tlGeom(), M.flat, tl.map((t) => [t.x, t.z, 0]), { lift: 0.06 }));

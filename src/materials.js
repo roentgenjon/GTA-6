@@ -5,7 +5,7 @@ import * as T from './textures.js';
 export const M = {};
 export function initMaterials() {
   const fc = T.facadeTextures('curtain', 1), fo = T.facadeTextures('office', 2), fr = T.facadeTextures('resid', 3);
-  const fac = (t, rough, metal) => new THREE.MeshStandardMaterial({ map: t.map, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: rough, metalness: metal });
+  const fac = (t, rough, metal) => new THREE.MeshStandardMaterial({ map: t.map, bumpMap: t.bump, bumpScale: 2.2, emissiveMap: t.emissive, emissive: 0xffffff, emissiveIntensity: 0, vertexColors: true, roughness: rough, metalness: metal });
   M.curtain = fac(fc, 0.18, 0.55);
   M.office = fac(fo, 0.6, 0.1);
   M.resid = fac(fr, 0.75, 0.0);
@@ -17,7 +17,8 @@ export function initMaterials() {
   M.plain.map.repeat.set(3, 3);
   M.slab = new THREE.MeshStandardMaterial({ map: T.pavementTexture(), roughness: 0.88, vertexColors: true });
   M.glass = new THREE.MeshStandardMaterial({ color: 0x0c141c, roughness: 0.04, metalness: 0.9 });
-  M.carGlass = new THREE.MeshStandardMaterial({ color: 0x0a1118, roughness: 0.02, metalness: 0.95, transparent: true, opacity: 0.88 });
+  M.carGlass = new THREE.MeshStandardMaterial({ color: 0x0a1118, roughness: 0.02, metalness: 0.9, transparent: true, opacity: 0.62 });
+  M.blob = new THREE.MeshBasicMaterial({ map: T.blobTexture(), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: false });
   M.rubber = new THREE.MeshStandardMaterial({ color: 0x161616, roughness: 0.8 });
   M.chrome = new THREE.MeshStandardMaterial({ color: 0xcfd3d8, roughness: 0.15, metalness: 1.0 });
   M.person = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.82, metalness: 0.0 });
@@ -38,7 +39,7 @@ export function updateMaterials(night, wet, rain) {
   M.neon.color.setRGB(n, n, n);
   M.lamp.color.setRGB(0.25 + night * 1.2, 0.22 + night * 1.0, 0.15 + night * 0.7);
   M.glow.opacity = night * 0.6;
-  M.road.roughness = 0.92 - wet * 0.72; M.plain.roughness = 0.92 - wet * 0.72;
+  M.road.envMapIntensity = 1 + wet * 1.6; M.plain.envMapIntensity = 1 + wet * 1.6; M.road.roughness = 0.92 - wet * 0.72; M.plain.roughness = 0.92 - wet * 0.72;
   const dk = 1 - wet * 0.35; M.road.color.setRGB(dk, dk, dk); M.plain.color.setRGB(dk, dk, dk);
   M.slab.roughness = 0.88 - wet * 0.5;
 }

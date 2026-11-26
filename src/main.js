@@ -4,6 +4,7 @@ import { EffectComposer } from 'three/addons/postprocessing/EffectComposer.js';
 import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
+import { GTAOPass } from 'three/addons/postprocessing/GTAOPass.js';
 import { ShaderPass } from 'three/addons/postprocessing/ShaderPass.js';
 import { G, emit, on } from './game.js';
 import { Sky, Weather, Rain } from './sky.js';
@@ -22,6 +23,7 @@ import { Missions, defineMissions, snapRoad } from './missions.js';
 import { Race, Taxi, Delivery, Events, RACES } from './activities.js';
 import { newProfile, Save, Eco } from './profile.js';
 import { UI } from './ui.js';
+import { Touch } from './touch.js';
 import { city } from './city.js';
 import { SITES } from './sites.js';
 import { BY_ID, CATALOG } from './catalog.js';
@@ -36,7 +38,7 @@ const QUALITY = {
 };
 const TIPS = ['Tipp: Mit der Handbremse (Leertaste) lassen sich Autos gezielt driften.', 'Tipp: Nach einem Verbrechen hilft es, außer Sichtweite zu fahren und das Auto zu wechseln.', 'Tipp: Gelbe Rampen bringen Stunt-Prämien.', 'Tipp: Kaufe Immobilien, um Fahrzeuge zu speichern.', 'Tipp: Regen macht Straßen rutschig – fahr vorsichtig!', 'Tipp: Mit F steigst du auch in Boote, Flugzeuge und Hubschrauber.', 'Tipp: Setze einen Wegpunkt auf der Karte (M) für eine GPS-Route.'];
 
-let renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
+let gtao, renderer, scene, camera, composer, bloom, cinePass, outPass, sky, rain, lampLights = [], headSpot, clockT = 0, last = performance.now(), saveTimer = 0, speedBlur = 0;
 let loaded = false, started = false;
 
 const CineShader = {
@@ -57,7 +59,9 @@ const CineShader = {
 // ---------------- Setup ----------------
 async function boot() {
   UI.init();
+  const hadSettings = (() => { try { return !!localStorage.getItem('vicecity_settings_v1'); } catch (e) { return false; } })();
   Save.loadSettings();
+  if (!hadSettings && Touch.isTouchDevice()) { G.settings.quality = 'medium'; G.settings.traffic = 0.8; G.settings.bloom = false; }
   G.quality = QUALITY[G.settings.quality] || QUALITY.high;
   UI.setLoading(0.05, 'Renderer wird gestartet …');
   const canvas = document.getElementById('game');
@@ -83,6 +87,7 @@ async function boot() {
   await step(0.9, 'Nachbearbeitung …');
   setupComposer();
   Input.init(canvas);
+  Touch.init(UI);
   // Spieler Platzhalter (für Titelhintergrund)
   G.profile = newProfile(); G.player = new Player(); G.player.teleport(120, -20);
   G.player.group.visible = false;
@@ -104,10 +109,13 @@ async function boot() {
   requestAnimationFrame(loop);
 }
 function setupComposer() {
+  if (composer) { try { composer.dispose && composer.dispose(); } catch (e) { } }
   const size = renderer.getSize(new THREE.Vector2()), pr = renderer.getPixelRatio();
   const rt = new THREE.WebGLRenderTarget(size.x * pr, size.y * pr, { type: THREE.HalfFloatType, samples: G.quality.pr > 1 ? 4 : 2 });
   composer = new EffectComposer(renderer, rt); composer.setPixelRatio(pr); composer.setSize(size.x, size.y);
   composer.addPass(new RenderPass(scene, camera));
+  gtao = null;
+  if (G.settings.quality === 'ultra' && !document.body.classList.contains('touch')) { try { gtao = new GTAOPass(scene, camera, size.x, size.y); gtao.output = GTAOPass.OUTPUT.Default; gtao.updateGtaoMaterial({ radius: 2.2, distanceExponent: 1.2, thickness: 1.2, scale: 1.0, samples: 12, distanceFallOff: 1, screenSpaceRadius: false }); gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 }); gtao.blendIntensity = 0.9; composer.addPass(gtao); } catch (e) { console.warn('GTAO nicht verfügbar', e); gtao = null; } }
   bloom = new UnrealBloomPass(new THREE.Vector2(size.x / 2, size.y / 2), 0.38, 0.65, 0.86); composer.addPass(bloom);
   outPass = new OutputPass(); composer.addPass(outPass);
   cinePass = new ShaderPass(CineShader); composer.addPass(cinePass);
@@ -118,8 +126,9 @@ function onResize() {
 }
 G.applySettings = (k) => {
   const s = G.settings; G.quality = QUALITY[s.quality] || QUALITY.high;
-  if (k === 'quality' || k === 'shadows') { renderer.setPixelRatio(Math.min(window.devicePixelRatio, G.quality.pr)); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = s.shadows; sky.setShadowRes(G.quality.shadow); if (composer) { composer.setPixelRatio(renderer.getPixelRatio()); composer.setSize(innerWidth, innerHeight); } scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); if (k === 'quality') UI.toast('Qualität geändert (Gelände-Detail nach Neuladen)'); }
+  if (k === 'quality' || k === 'shadows') { renderer.setPixelRatio(Math.min(window.devicePixelRatio, G.quality.pr)); renderer.setSize(innerWidth, innerHeight); renderer.shadowMap.enabled = s.shadows; sky.setShadowRes(G.quality.shadow); scene.traverse((o) => { if (o.material) o.material.needsUpdate = true; }); if (k === 'quality') { setupComposer(); UI.toast('Qualität geändert (Gelände-Detail nach Neuladen)'); } }
   if (k === 'volume' || k === 'music') Audio.setVolumes();
+  if (k === 'touch') { Touch.init(UI); }
   if (k === 'fov') { camera.fov = s.fov; camera.updateProjectionMatrix(); }
 };
 
@@ -287,6 +296,7 @@ function loop(now) {
   const _t0 = performance.now();
   const st = G.state, sim = st === 'play' || st === 'cutscene' || st === 'menu';
   const pl = G.player;
+  Touch.update();
   if (sim) {
     if (st !== 'menu' || true) { const ts = G.settings.timeScale; G.hour += dt * ts / 60; if (G.hour >= 24) { G.hour -= 24; G.day++; } }
     G.weather.update(dt);

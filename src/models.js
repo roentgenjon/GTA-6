@@ -86,6 +86,10 @@ function carBody(s, opts) {
   if (s.cls === 'muscle') D.box(0, yHH + 0.03, X(0.78), 0.5, 0.1, 0.8, 0x1a1a1a); // Hutze
   if (s.cls === 'suv' || s.cls === 'pickup') { D.box(0, yR + 0.04, 0, W * 0.8, 0.05, L * 0.4, 0x15171a); D.box(0, cl + 0.22, L / 2 + 0.05, W * 0.9, 0.2, 0.1, 0x222426); }
   { const wbb = L * 0.6; for (const zz of [wbb / 2, -wbb / 2]) for (const mm of [-1, 1]) D.cylX(mm * (W / 2 + 0.012), s.wr, zz, s.wr + 0.08, 0.03, 12, 0x0a0a0a); }
+  { const mid = X((f2 + f3) / 2), sd = 0x2b2b2f, by = belt - 0.36;
+    for (const sx of [-0.4, 0.4]) { D.box(sx, by, mid, 0.46, 0.14, 0.5, sd); D.box(sx, belt - 0.06, mid - 0.24, 0.46, 0.55, 0.1, sd); }
+    D.box(0, by, X(f2) + 0.45, W - 0.6, 0.14, 0.5, sd); D.box(0, belt - 0.06, X(f2) + 0.22, W - 0.6, 0.5, 0.1, sd);
+    D.box(0, belt - 0.14, X(f4) - 0.12, W - 0.4, 0.16, 0.42, 0x18181a); D.box(0.4, belt + 0.0, X(f4) - 0.42, 0.34, 0.05, 0.3, 0x0e0e0e); D.box(0.4, belt - 0.12, X(f4) - 0.36, 0.05, 0.22, 0.05, 0x222); }
   // Türfugen
   for (const m of [-1, 1]) { D.box(m * (W / 2 + 0.005), (cl + belt) / 2 + 0.05, X((f2 + f3) / 2), 0.01, belt - cl - 0.1, 0.012, 0x0d0d0d); D.box(m * (W / 2 + 0.005), belt - 0.12, X((f2 + f3) / 2) + 0.25, 0.012, 0.03, 0.2, 0x303030); }
   // Pickup-Ladefläche
@@ -286,6 +290,7 @@ export function buildModel(spec, c1, c2) {
   const specialPaint = spec.special === 'police' && kind === 'car';
   const mat = M.car(0xffffff);
   mat.vertexColors = true;
+  if (kind === 'car' || kind === 'bike') { const bl = new THREE.Mesh(new THREE.PlaneGeometry(spec.W * 1.45, spec.L * 1.2), M.blob); bl.rotation.x = -Math.PI / 2; bl.position.y = 0.035; bl.renderOrder = 1; root.add(bl); }
   let parts;
   if (kind === 'car') {
     if (spec.cls === 'truck' || spec.cls === 'bus') parts = heavyBody(spec, opts);

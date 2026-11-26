@@ -13,7 +13,7 @@ import { randomLook } from './persons.js';
 
 // ---------------- Eingabe ----------------
 export const Input = {
-  keys: {}, pressed: new Set(), mouseDX: 0, mouseDY: 0, buttons: 0, wheel: 0, locked: false, lastBtn: 0,
+  keys: {}, axisX: null, pressed: new Set(), mouseDX: 0, mouseDY: 0, buttons: 0, wheel: 0, locked: false, lastBtn: 0,
   init(canvas) {
     window.addEventListener('keydown', (e) => {
       if (e.target && /INPUT|TEXTAREA|SELECT/.test(e.target.tagName)) return;
@@ -23,7 +23,7 @@ export const Input = {
     });
     window.addEventListener('keyup', (e) => { this.keys[e.code] = false; G.keys[e.code] = false; });
     window.addEventListener('blur', () => { for (const k in this.keys) this.keys[k] = false; this.buttons = 0; });
-    canvas.addEventListener('mousedown', (e) => { if (G.state === 'play' && !this.locked) this.lock(canvas); this.buttons |= 1 << e.button; this.lastBtn = e.button; if (e.button === 0) this.pressed.add('Mouse0'); if (e.button === 2) this.pressed.add('Mouse2'); });
+    canvas.addEventListener('mousedown', (e) => { if (document.body.classList.contains('touch')) return; if (G.state === 'play' && !this.locked) this.lock(canvas); this.buttons |= 1 << e.button; this.lastBtn = e.button; if (e.button === 0) this.pressed.add('Mouse0'); if (e.button === 2) this.pressed.add('Mouse2'); });
     window.addEventListener('mouseup', (e) => { this.buttons &= ~(1 << e.button); });
     canvas.addEventListener('contextmenu', (e) => e.preventDefault());
     window.addEventListener('mousemove', (e) => { if (this.locked || (G.state === 'play' && this.buttons)) { this.mouseDX += e.movementX; this.mouseDY += e.movementY; } });
@@ -293,7 +293,7 @@ export class Player {
       inp.steer = inp.roll;
       if (kind === 'heli' && !(K('ShiftLeft') || K('Space'))) inp.lift = 0;
     } else {
-      inp.throttle = K('KeyW') ? 1 : 0; inp.brake = K('KeyS') ? 1 : 0; inp.steer = damp(inp.steer, (K('KeyA') ? 1 : 0) - (K('KeyD') ? 1 : 0), 9, dt);
+      inp.throttle = K('KeyW') ? 1 : 0; inp.brake = K('KeyS') ? 1 : 0; inp.steer = damp(inp.steer, I.axisX != null ? I.axisX : (K('KeyA') ? 1 : 0) - (K('KeyD') ? 1 : 0), 9, dt);
       inp.handbrake = K('Space'); inp.boost = false;
       if (kind === 'boat') { inp.handbrake = false; }
     }
